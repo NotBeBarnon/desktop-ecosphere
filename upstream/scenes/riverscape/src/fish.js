@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { bankingAngle } from '../../shared/motion.js';
 import { groundHeight, randomGenerator, smoothstep } from "./math.js";
 import { flowDirectionAt, shelteredVelocity, thicketAt } from "./water.js";
 import {
@@ -285,6 +286,7 @@ const SWIM_GLSL = /* glsl */ `
   // Part ids come from fish-anatomy.js: 4 and 5 are the pectorals, 1-3, 6 and 12 the other fins.
   attribute vec4 aSwim; // x: wave phase, y: wave angle, z: turning curvature, w: pectoral brake
   attribute float aFinPhase;
+  attribute float aDive;
   attribute float aPart;
   attribute float aFinProgress;
   varying vec3 vSkinPoint;
@@ -301,38 +303,48 @@ const SWIM_GLSL = /* glsl */ `
   vec3 finMotion(vec3 p) {
     if (aPart > 3.5 && aPart < 5.5) {
       float side = aPart < 4.5 ? 1.0 : -1.0;
-      float beat = sin(aFinPhase + side * 0.9);
+      float beat = sin(aFinPhase + side * 0.9) * (1.0 + side * clamp(aSwim.z,-1.,1.)*.3);
       p.z += side * aFinProgress * (0.013 * beat + 0.018 * aSwim.w);
       p.x += aFinProgress * (0.008 * beat - 0.033 * aSwim.w);
-      p.y += aFinProgress * 0.008 * cos(aFinPhase + side * 0.9);
+      p.y += aFinProgress * 0.013 * cos(aFinPhase + side * 0.9);
     } else if (aPart > 0.5 && aPart < 1.5) {
       // The trailing membrane lags behind the peduncle instead of acting as a paddle.
       p.z += aSwim.y * 0.045 * aFinProgress * aFinProgress
         * sin(aSwim.x - (PIVOT - p.x) * 7.5 - 0.65);
+      float twist=(sin(aSwim.x-(PIVOT-p.x)*7.5-.9)*aSwim.y*.18+aSwim.z*.025)*aFinProgress*aFinProgress;
+      p.yz=mat2(cos(twist),sin(twist),-sin(twist),cos(twist))*p.yz;
     } else if ((aPart > 1.5 && aPart < 6.5) || aPart > 11.5) {
       p.z += sin(aFinPhase - p.x * 10.0) * aFinProgress * 0.004;
     }
     return p;
   }
+  void finNormal(vec3 p,inout vec3 n) {
+    if(aPart>.5&&aPart<1.5){float twist=(sin(aSwim.x-(PIVOT-p.x)*7.5-.9)*aSwim.y*.18+aSwim.z*.025)*aFinProgress*aFinProgress;n.yz=mat2(cos(twist),sin(twist),-sin(twist),cos(twist))*n.yz;}
+  }
+  float spineElevation(float s){return aDive*clamp(s/.57,0.,1.2);}
   vec3 bendSpine(vec3 p, inout vec3 n) {
     float s = PIVOT - p.x;
     float theta = spineAngle(s);
-    vec2 spine = vec2(PIVOT, 0.0);
+    vec3 spine = vec3(PIVOT, 0.0, 0.0);
     float kappa = (spineAngle(s + 0.001) - spineAngle(s - 0.001)) / 0.002;
     if (s < 0.0) {
       float mid = spineAngle(s * 0.5);
-      spine += vec2(-cos(mid), sin(mid)) * s;
+      float elevation=spineElevation(s*.5);
+      spine += vec3(-cos(mid)*cos(elevation),sin(elevation),sin(mid)*cos(elevation))*s;
     } else {
       float ds = s / 8.0;
       for (int i = 0; i < 8; i++) {
         float mid = spineAngle((float(i) + 0.5) * ds);
-        spine += vec2(-cos(mid), sin(mid)) * ds;
+        float elevation=spineElevation((float(i)+.5)*ds);
+        spine += vec3(-cos(mid)*cos(elevation),sin(elevation),sin(mid)*cos(elevation))*ds;
       }
     }
     float c = cos(theta), sn = sin(theta);
-    vec3 local = vec3(n.x / max(0.3, 1.0 - p.z * kappa), n.y, n.z);
-    n = normalize(vec3(local.x * c + local.z * sn, local.y, -local.x * sn + local.z * c));
-    return vec3(spine.x + p.z * sn, p.y, spine.y + p.z * c);
+    float elevation=spineElevation(s),ce=cos(elevation),se=sin(elevation);
+    float verticalCurvature=(spineElevation(s+.001)-spineElevation(s-.001))/.002;
+    vec3 local = vec3(n.x / max(0.3, 1.0 - p.z * kappa+p.y*verticalCurvature), n.y, n.z);
+    n = normalize(vec3(local.x*c*ce+local.y*c*se+local.z*sn,-local.x*se+local.y*ce,-local.x*sn*ce-local.y*sn*se+local.z*c));
+    return spine+vec3(p.y*c*se+p.z*sn,p.y*ce,-p.y*sn*se+p.z*c);
   }
 `;
 
@@ -348,6 +360,7 @@ function applySwimming(material, withColor = true) {
           "#include <beginnormal_vertex>",
           /* glsl */ `
           vec3 objectNormal = vec3(normal);
+          finNormal(position,objectNormal);
           gSwimPosition = bendSpine(finMotion(position), objectNormal);
         `,
         )
@@ -372,7 +385,7 @@ function applySwimming(material, withColor = true) {
     }
   };
   material.customProgramCacheKey = () =>
-    `riverscape-fish-${withColor ? "skin" : "depth"}-4`;
+    `riverscape-fish-${withColor ? "skin" : "depth"}-5`;
 }
 
 function clampToBox(position, box, margin = 0) {
@@ -422,12 +435,16 @@ export function createFishSchool(
   const finPhaseAttribute = new THREE.InstancedBufferAttribute(
     new Float32Array(fishCount), 1,
   );
+  const diveAttribute=new THREE.InstancedBufferAttribute(new Float32Array(fishCount),1);
+  diveAttribute.setUsage(THREE.DynamicDrawUsage);
   swimAttribute.setUsage(THREE.DynamicDrawUsage);
   finPhaseAttribute.setUsage(THREE.DynamicDrawUsage);
   geometry.body.setAttribute("aSwim", swimAttribute);
   geometry.fins.setAttribute("aSwim", swimAttribute);
   geometry.body.setAttribute("aFinPhase", finPhaseAttribute);
   geometry.fins.setAttribute("aFinPhase", finPhaseAttribute);
+  geometry.body.setAttribute("aDive",diveAttribute);
+  geometry.fins.setAttribute("aDive",diveAttribute);
   const { skin: skinMaterial, fins: finMaterial } = createFishMaterials();
   const depthMaterial = new THREE.MeshDepthMaterial({
     depthPacking: THREE.RGBADepthPacking,
@@ -514,6 +531,8 @@ export function createFishSchool(
       yawRate: 0,
       bend: 0,
       turnIntent: 0,
+      visualBank: 0,
+      visualDive: 0,
       finBrake: 0.25,
       urge: 0,
       // Curiosity builds while a fish holds station and is spent on a visit somewhere.
@@ -1642,14 +1661,19 @@ export function createFishSchool(
         f.finBrake,
       );
       finPhaseAttribute.setX(f.id, f.finPhase);
+      f.visualDive=THREE.MathUtils.lerp(f.visualDive,-Math.asin(THREE.MathUtils.clamp(heading.y,-1,1))*.16,1-Math.exp(-dt*4.5));
+      diveAttribute.setX(f.id,f.visualDive);
 
       axisZ.crossVectors(heading, UP).normalize();
       axisY.crossVectors(axisZ, heading).normalize();
       basis.makeBasis(heading, axisY, axisZ);
       targetQuaternion.setFromRotationMatrix(basis);
+      // River heading yaw grows toward +Z, opposite the reef's right-handed Y yaw.
+      const bankTarget=bankingAngle(-f.bend*Math.max(speed,TURN.floorSpeed),speed,STANDARD_LENGTH*f.scale);
+      f.visualBank=THREE.MathUtils.lerp(f.visualBank,bankTarget,1-Math.exp(-dt*4));
       bankQuaternion.setFromAxisAngle(
         FORWARD,
-        -THREE.MathUtils.clamp(f.bend, -1.8, 1.8) * 0.08,
+        f.visualBank,
       );
       targetQuaternion.multiply(bankQuaternion);
       f.quaternion.copy(targetQuaternion);
@@ -1662,6 +1686,7 @@ export function createFishSchool(
     membranes.instanceMatrix.needsUpdate = true;
     swimAttribute.needsUpdate = true;
     finPhaseAttribute.needsUpdate = true;
+    diveAttribute.needsUpdate=true;
   }
 
   for (const f of fish) if (f.id % 4 !== 0) leave(f);

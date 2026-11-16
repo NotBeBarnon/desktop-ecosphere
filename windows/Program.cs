@@ -357,6 +357,15 @@ namespace DesktopEcosphere {
             File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-lighting-"+prefs.Scene+".json"),new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new {bright,dark,stopped}));
             appliedLighting=null; appliedRate=-1; await Tick();
         }
+        async Task RecordMotionPreview() {
+            if(prefs.Scene!="reefscape") return;
+            await Script("window.reef.setView('fish');window.habitatPause(false);window.habitatRate(30);window.__motionClip=null;window.__motionError=null;(()=>{try{const canvas=document.querySelector('#scene');const stream=canvas.captureStream(24);const mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp8')?'video/webm;codecs=vp8':'video/webm';const chunks=[];const recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:900000});recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};recorder.onerror=e=>{window.__motionError=String(e.error);stream.getTracks().forEach(t=>t.stop())};recorder.onstop=()=>{stream.getTracks().forEach(t=>t.stop());const reader=new FileReader();reader.onload=()=>window.__motionClip=reader.result.split(',')[1];reader.readAsDataURL(new Blob(chunks,{type:mime}))};recorder.start();setTimeout(()=>{if(recorder.state==='recording')recorder.stop()},8000)}catch(e){window.__motionError=String(e)}})()");
+            for(int i=0;i<60;i++) { await Task.Delay(250); if(await Script("Boolean(window.__motionClip||window.__motionError)")=="true") break; }
+            string encoded=await Script("window.__motionClip||null");
+            if(encoded!="null") { var serializer=new System.Web.Script.Serialization.JavaScriptSerializer {MaxJsonLength=20*1024*1024}; string data=serializer.Deserialize<string>(encoded); File.WriteAllBytes(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"motion-preview-reefscape.webm"),Convert.FromBase64String(data)); }
+            else File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"motion-preview-error.txt"),await Script("window.__motionError||'Recording timeout'"));
+            await Script("window.reef.setView('wide')");
+        }
         async Task Smoke() {
             if(prefs.Scene=="riverscape") {
                 using(var settingsWindow=new SettingsForm(prefs,RuntimeStatus,null,token=>Task.FromResult(UpdateChecker.Tags("[{\"name\":\"v0.9.0\"}]")))) {
@@ -407,6 +416,7 @@ namespace DesktopEcosphere {
             if(!blocked || !enabled || !portions) throw new Exception("鼠标互动开关或投食份量验证失败");
             File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-interaction-"+prefs.Scene+".json"),new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new {blocked,enabled,portions}));
             using(var f = File.Create(target + ".png")) await web.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,f);
+            await RecordMotionPreview();
             await VerifyPopulationProfiles();
             await VerifyCustomPopulation();
             if(prefs.Scene == "riverscape") { prefs.Scene = "reefscape"; Navigate(); timer.Start(); await Smoke(); } else {

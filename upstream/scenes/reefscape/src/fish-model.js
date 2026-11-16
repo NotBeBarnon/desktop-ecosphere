@@ -325,7 +325,7 @@ function fishMaterial(kind) {
   // so their stroke is smaller than the tail that carries them.
   const stroke=kind==='clown'?[.050,.034]:kind==='chromis'?[.024,.010]:[.030,.014];
   return underwater(new THREE.MeshStandardMaterial({roughness:.38,metalness:.02,side:THREE.DoubleSide,transparent:true,forceSinglePass:true}),{
-    key:`fish-${kind}`,transmission:.085,
+    key:`fish-${kind}-spatial`,transmission:.085,
     vertex:`attribute float part;attribute vec4 aFishTrim;attribute vec4 aFishGait;varying float vPart;varying vec3 vAnatomy;varying vec2 vSkinUv;varying vec2 vTrim;
       #define fishTrim aFishTrim
       #define fishGait aFishGait
@@ -334,23 +334,29 @@ function fishMaterial(kind) {
       const float fishLength=${n(SPECIES[kind].len*.8)};
       const float fishPivot=${n(SNOUT-SPECIES[kind].len*.2)};
       float fishAngle(float s) {float q=clamp(s/fishLength,0.,1.2);return fishGait.z*q+fishTrim.y*4.5/fishLength*q*q*sin(fishTrim.x-q*3.7);}
+      float fishElevation(float s){return fishGait.w*clamp(s/fishLength,0.,1.2);}
+      float tailTwist(vec3 p){return part>.5&&part<1.5&&p.x<${n(axis(kind,1)+.04)}?(sin(fishTrim.x-4.4)*fishTrim.y*1.8+fishGait.z*.07)*uv.y*uv.y:0.;}
+      vec3 fishLocal(vec3 p){
+        float twist=tailTwist(p);p.yz=mat2(cos(twist),sin(twist),-sin(twist),cos(twist))*p.yz;
+        if(part>1.5&&part<3.5){float side=sign(p.z),hinge=clamp((.30-p.x)*3.4,0.,1.);float phase=fishGait.x+side*.55;
+          float strength=fishGait.y*(1.+side*clamp(fishGait.z,-.7,.7)*.45),row=sin(phase)*strength;
+          p.z+=side*row*hinge*${n(stroke[0])};p.x-=row*hinge*hinge*${n(stroke[1])};p.y+=cos(phase)*strength*hinge*${n(stroke[0]*.65)};}
+        return p;
+      }
       vec3 fishDeform(vec3 p) {
-        float s=fishPivot-p.x,ds=s/6.;vec2 spine=vec2(fishPivot,0.);
-        for(int i=0;i<6;i++){float angle=fishAngle((float(i)+.5)*ds);spine+=vec2(-cos(angle),sin(angle))*ds;}
-        float angle=fishAngle(s);return vec3(spine.x+p.z*sin(angle),p.y,spine.y+p.z*cos(angle));
+        float s=fishPivot-p.x,ds=s/6.;vec3 spine=vec3(fishPivot,0.,0.);
+        for(int i=0;i<6;i++){float along=(float(i)+.5)*ds,angle=fishAngle(along),elevation=fishElevation(along);spine+=vec3(-cos(angle)*cos(elevation),sin(elevation),sin(angle)*cos(elevation))*ds;}
+        float angle=fishAngle(s),elevation=fishElevation(s);return spine+vec3(p.y*cos(angle)*sin(elevation)+p.z*sin(angle),p.y*cos(elevation),-p.y*sin(angle)*sin(elevation)+p.z*cos(angle));
       }`,
-    normal:`float s=fishPivot-position.x;float angle=fishAngle(s),curvature=(fishAngle(s+.001)-fishAngle(s-.001))/.002;
-      vec3 localNormal=vec3(normal.x/max(.3,1.-position.z*curvature),normal.y,normal.z);
-      objectNormal=normalize(vec3(localNormal.x*cos(angle)+localNormal.z*sin(angle),localNormal.y,-localNormal.x*sin(angle)+localNormal.z*cos(angle)));`,
+    normal:`vec3 pose=fishLocal(position),finNormal=normal;float twist=tailTwist(position);finNormal.yz=mat2(cos(twist),sin(twist),-sin(twist),cos(twist))*finNormal.yz;
+      float s=fishPivot-pose.x,angle=fishAngle(s),elevation=fishElevation(s),curvature=(fishAngle(s+.001)-fishAngle(s-.001))/.002;
+      float verticalCurvature=(fishElevation(s+.001)-fishElevation(s-.001))/.002;
+      vec3 localNormal=vec3(finNormal.x/max(.3,1.-pose.z*curvature+pose.y*verticalCurvature),finNormal.y,finNormal.z);
+      objectNormal=normalize(vec3(localNormal.x*cos(angle)*cos(elevation)+localNormal.y*cos(angle)*sin(elevation)+localNormal.z*sin(angle),-localNormal.x*sin(elevation)+localNormal.y*cos(elevation),-localNormal.x*sin(angle)*cos(elevation)-localNormal.y*sin(angle)*sin(elevation)+localNormal.z*cos(angle)));`,
     begin:`vPart=part;vAnatomy=position;vSkinUv=uv;vTrim=fishTrim.zw;
-      transformed=fishDeform(position);
+      transformed=fishDeform(fishLocal(position));
       // A pectoral rows through an abduction–adduction cycle rather than flapping: the
       // blade sweeps out and then back along the flank, so the stroke has a fore-aft part.
-      if(part>1.5&&part<3.5){
-        float hinge=clamp((.30-position.x)*3.4,0.,1.),row=sin(fishGait.x)*fishGait.y;
-        transformed.z+=sign(position.z)*row*hinge*${n(stroke[0])};
-        transformed.x-=row*hinge*hinge*${n(stroke[1])};
-      }
       ${kind==='anthias'?`// Both sexes carry the lyre and a prolonged third dorsal spine; on the terminal
       // male the lobe tips run out a little further and that spine stands about twice the
       // fin height, not the whips the species is often drawn with.
@@ -459,7 +465,7 @@ export function createFishSchool(scene,simulation){
         // The simulation owns effort and amplitude. No hidden idle oscillation here;
         // a coast is straight. The travelling wave runs from the head toward the tail.
         group.data.set([f.phase,f.tailAmplitude,...group.trim[i]],i*4);
-        group.gait.set([f.pectoral,f.rowing,f.bend,0],i*4);
+        group.gait.set([f.pectoral,f.rowing,f.bend,-f.pitch*.16],i*4);
       }
       group.attribute.needsUpdate=true;group.gaitAttribute.needsUpdate=true;group.mesh.instanceMatrix.needsUpdate=true;
     }

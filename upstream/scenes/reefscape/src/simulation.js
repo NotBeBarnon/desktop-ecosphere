@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { reefCounts } from '../../shared/population.js';
+import { bankingAngle } from '../../shared/motion.js';
 import { randomGenerator, clamp, groundHeight, limitVector } from './math.js';
 import { currentAt } from './water.js';
 import { supportHeight } from './terrain.js';
@@ -251,7 +252,7 @@ export class ReefSimulation {
     // curvature to body length so a slow turn bends instead of pivoting a plank.
     const bodyTurn=(f.turning*.7+turnIntent*.3)*g.length*f.size/Math.max(.28,f.speed)*.42;
     f.bend+=(clamp(bodyTurn,-.72,.72)-f.bend)*ease(9);
-    f.bank+=(clamp(-f.turning*.055,-.13,.13)-f.bank)*ease(4);
+    f.bank+=(bankingAngle(f.turning,f.speed,g.length*f.size)-f.bank)*ease(4);
     const h=this._heading.set(Math.cos(f.yaw)*Math.cos(f.pitch),Math.sin(f.pitch),-Math.sin(f.yaw)*Math.cos(f.pitch));
     const target=f.alarm>0?demand:Math.max(0,h.dot(f.steer));
     f.bout-=dt;
