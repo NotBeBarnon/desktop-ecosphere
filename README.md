@@ -2,7 +2,7 @@
 
 为 Windows 桌面添加实时淡水生态缸或珊瑚海水缸。基于 C#、WinForms、WebView2 和 Three.js/WebGL2，离线运行。
 
-当前版本：**v0.9.0** · 仓库：[NotBeBarnon/desktop-ecosphere](https://github.com/NotBeBarnon/desktop-ecosphere)
+当前版本：**v0.10.0** · 仓库：[NotBeBarnon/desktop-ecosphere](https://github.com/NotBeBarnon/desktop-ecosphere)
 
 ![场景预览](upstream/docs/images/riverscape-wide.png)
 
@@ -18,6 +18,7 @@
 - 设置导入、导出和恢复默认，支持迁移已有配置。
 - 灯光亮度与可选的本地时间昼夜渐变。
 - 关于页面和手动 GitHub 版本检查。
+- 按体长弯曲的海水鱼转向、与转向意图衔接的身体动作。
 - 当前用户安装、快捷方式和卸载入口。
 
 ## 运行与编译
@@ -31,7 +32,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build-installer.ps1
 ```
 
-产物为 `dist/DesktopEcosphere-v0.9/DesktopEcosphere.exe`、`dist/DesktopEcosphere-Windows-x64-v0.9.zip` 和 `dist/DesktopEcosphere-Setup-v0.9.exe`。
+产物为 `dist/DesktopEcosphere-v0.10/DesktopEcosphere.exe`、`dist/DesktopEcosphere-Windows-x64-v0.10.zip` 和 `dist/DesktopEcosphere-Setup-v0.10.exe`。
 
 安装位置为 `%LOCALAPPDATA%/Programs/DesktopEcosphere`，无需管理员权限。安装包不包含 WebView2 Runtime，尚未代码签名。升级前先从托盘退出旧版。
 
@@ -71,7 +72,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build-installe
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\test-policy.ps1
 node .\upstream\scenes\shared\population.test.mjs
 node .\upstream\scenes\shared\lighting.test.mjs
-.\dist\DesktopEcosphere-v0.9\DesktopEcosphere.exe --smoke-test
+node .\upstream\scenes\reefscape\tests\turn-flex.mjs
+.\dist\DesktopEcosphere-v0.10\DesktopEcosphere.exe --smoke-test
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\verify.ps1
 ```
 

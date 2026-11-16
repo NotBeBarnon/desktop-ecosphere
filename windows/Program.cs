@@ -308,8 +308,8 @@ namespace DesktopEcosphere {
                 int expected=prefs.Scene=="riverscape"?(profile=="sparse"?12:profile=="lively"?36:24):(profile=="sparse"?12:profile=="lively"?28:19);
                 string actual=await Script("(()=>{const s=habitatStats();return s.fishCount??(s.population.clownfish+s.population.chromis+s.population.anthias)})()");
                 if(actual!=expected.ToString(CultureInfo.InvariantCulture)) throw new Exception("鱼群数量不匹配："+profile+" "+actual);
-                string healthy=await Script("(()=>{const s=habitatStats();return Boolean((s.renderedFrames||s.frames)>0 && !s.contextLost && s.finite!==false)})()");
-                for(int i=0;i<75 && healthy!="true";i++) { await Task.Delay(200); healthy=await Script("(()=>{const s=habitatStats();return Boolean((s.renderedFrames||s.frames)>0 && !s.contextLost && s.finite!==false)})()"); }
+                string healthy=await Script("(()=>{const s=habitatStats();return Boolean((s.renderedFrames||s.frames)>0 && !s.contextLost && !s.shaderErrors && s.finite!==false)})()");
+                for(int i=0;i<75 && healthy!="true";i++) { await Task.Delay(200); healthy=await Script("(()=>{const s=habitatStats();return Boolean((s.renderedFrames||s.frames)>0 && !s.contextLost && !s.shaderErrors && s.finite!==false)})()"); }
                 timer.Stop();
                 if(healthy!="true") throw new Exception("密度切换后场景状态异常："+profile+" "+await Script("habitatStats()"));
                 reports.Add(new {profile,expected,actual=int.Parse(actual),healthy=true});

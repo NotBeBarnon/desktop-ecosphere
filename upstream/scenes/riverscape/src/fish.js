@@ -294,7 +294,7 @@ const SWIM_GLSL = /* glsl */ `
   vec3 gSwimPosition;
   float spineAngle(float s) {
     float along = clamp(s / 0.57, 0.0, 1.0);
-    return aSwim.z * s * (s < 0.0 ? 0.18 : 1.0)
+    return aSwim.z * s * (s < 0.0 ? 0.35 : 1.0)
       - 0.025 * aSwim.y * sin(aSwim.x)
       + aSwim.y * pow(along, 1.35) * sin(aSwim.x - s * 7.5);
   }
@@ -513,6 +513,7 @@ export function createFishSchool(
       finPhase: range(0, TAU),
       yawRate: 0,
       bend: 0,
+      turnIntent: 0,
       finBrake: 0.25,
       urge: 0,
       // Curiosity builds while a fish holds station and is spent on a visit somewhere.
@@ -1453,6 +1454,7 @@ export function createFishSchool(
       const { flick } = f;
       let along = 0;
       let bendTarget = null;
+      f.turnIntent = 0;
       let flickWave = 1;
       let bending = false;
       if (flick) {
@@ -1516,9 +1518,10 @@ export function createFishSchool(
                     TURN.floorRate + swim.length() * TURN.speedRate,
                   );
           const error = wrap(yawOf(target) - yaw);
+          f.turnIntent=THREE.MathUtils.clamp(error * TURN.steeringGain, -rate, rate);
           f.yawRate = THREE.MathUtils.lerp(
             f.yawRate,
-            THREE.MathUtils.clamp(error * TURN.steeringGain, -rate, rate),
+            f.turnIntent,
             1 - Math.exp(-dt * TURN.response),
           );
           const nextYaw = yaw + f.yawRate * dt;
@@ -1602,11 +1605,11 @@ export function createFishSchool(
           (previousHeading.x * heading.z - previousHeading.z * heading.x) /
           Math.max(dt, 0.001);
         const curvature = THREE.MathUtils.clamp(
-          yawRate / Math.max(speed, TURN.floorSpeed),
+          (yawRate*.8+f.turnIntent*.2) / Math.max(speed, TURN.floorSpeed),
           -TURN.curvature,
           TURN.curvature,
         );
-        f.bend = THREE.MathUtils.lerp(f.bend, curvature, 1 - Math.exp(-dt * 6));
+        f.bend = THREE.MathUtils.lerp(f.bend, curvature, 1 - Math.exp(-dt * 8));
       } else f.bend = THREE.MathUtils.lerp(f.bend, bendTarget, 1 - Math.exp(-dt * 45));
       // No baseline tail oscillation: once a bout ends the body relaxes into a glide.
       f.effort = THREE.MathUtils.lerp(

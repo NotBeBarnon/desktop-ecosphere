@@ -203,7 +203,7 @@ async function start(){
   loop=createFrameLoop(renderFrame,{fps:fps(),paused,hidden:document.hidden||contextLost||zeroSize});
   restart();
   window.reef={
-    ready:true,diagnostics:()=>({...simulation.diagnostics(),lighting,exposure:renderer.toneMappingExposure,frames,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,
+    ready:true,diagnostics:()=>({...simulation.diagnostics(),shaderErrors:renderer.info.programs.filter(program=>program.diagnostics?.runnable===false).length,lighting,exposure:renderer.toneMappingExposure,frames,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,
       pixels:[canvas.width,canvas.height],quality,effectiveFPS:running()?fps():0,renderScale:ratio,cpuFrameEMA:cpuEMA,scheduled:loop.state.pending,paused,hostRate,hidden:document.hidden,contextLost,tentacles:anemone.tentacles.count,webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL2',renderer:renderer.getContext().getParameter(renderer.getContext().RENDERER)}),
     setView(name){if(!views[name])throw new RangeError('Unknown reef camera');applyView(name);resize();},
     pause(value=true){paused=Boolean(value);restart();},

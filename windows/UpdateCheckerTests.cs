@@ -21,7 +21,7 @@ namespace DesktopEcosphere {
             Check(UpdateChecker.ParseVersion("v0.10.0")>UpdateChecker.ParseVersion("v0.9.0"),"版本号按数值比较");
             foreach(var invalid in new[]{"1.2","v1.2.3-beta","v01.2.3","https://evil.invalid","v999999999999.0.0"}) Check(UpdateChecker.ParseVersion(invalid)==null,"忽略非稳定版本 "+invalid);
             var tags=UpdateChecker.Tags("[{\"name\":\"v0.9.0\"},{\"name\":\"v1.0.0-beta\"},{\"name\":\"v0.10.0\"}]");
-            Check(tags.Tag=="v0.10.0" && tags.TagOnly && tags.Newer && tags.Page.StartsWith(AppInfo.Repository+"/tree/"),"标签回退不冒充安装包");
+            Check(tags.Tag=="v0.10.0" && tags.TagOnly && tags.Page.StartsWith(AppInfo.Repository+"/tree/"),"标签回退不冒充安装包");
             var release=UpdateChecker.Release("{\"tag_name\":\"v1.0.0\",\"draft\":false,\"prerelease\":false,\"html_url\":\"https://evil.invalid\"}");
             Check(release.Newer && release.Page==AppInfo.Repository+"/releases/tag/v1.0.0","下载入口固定在本仓库");
             Reject(()=>UpdateChecker.Release("{\"tag_name\":\"v1.0.0\",\"draft\":true,\"prerelease\":false}"),"拒绝草稿版本");

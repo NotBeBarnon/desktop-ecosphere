@@ -344,6 +344,7 @@ async function start() {
   });
   updateControls();
   window.habitatStats = () => ({
+    shaderErrors: renderer.info.programs.filter(program => program.diagnostics?.runnable === false).length,
     lighting, exposure:renderer.toneMappingExposure,
     population: populationName(query.get('population')), fishCount: fish.getTelemetry().count,
     profile, onBattery, resolution: settings.resolution,

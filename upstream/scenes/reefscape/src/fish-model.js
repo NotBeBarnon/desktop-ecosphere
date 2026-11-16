@@ -331,11 +331,19 @@ function fishMaterial(kind) {
       #define fishGait aFishGait
       // The propulsive wave grows toward the tail, and a turn bends the whole body the same
       // way: a fish turns as a C, not as a rigid arrow swung about its middle.
-      float fishFlex(float x) {float q=clamp((.30-x)/1.14,0.,1.);return (sin(fishTrim.x-q*3.7)*fishTrim.y+fishGait.z)*q*q;}
-      float fishSlope(float x){float q=clamp((.30-x)/1.14,0.,1.);return -(2.*q*(fishTrim.y*sin(fishTrim.x-q*3.7)+fishGait.z)-3.7*q*q*fishTrim.y*cos(fishTrim.x-q*3.7))/1.14;}`,
-    normal:`objectNormal=normalize(vec3(normal.x-fishSlope(position.x)*normal.z,normal.y,normal.z));`,
+      const float fishLength=${n(SPECIES[kind].len*.8)};
+      const float fishPivot=${n(SNOUT-SPECIES[kind].len*.2)};
+      float fishAngle(float s) {float q=clamp(s/fishLength,0.,1.2);return fishGait.z*q+fishTrim.y*4.5/fishLength*q*q*sin(fishTrim.x-q*3.7);}
+      vec3 fishDeform(vec3 p) {
+        float s=fishPivot-p.x,ds=s/6.;vec2 spine=vec2(fishPivot,0.);
+        for(int i=0;i<6;i++){float angle=fishAngle((float(i)+.5)*ds);spine+=vec2(-cos(angle),sin(angle))*ds;}
+        float angle=fishAngle(s);return vec3(spine.x+p.z*sin(angle),p.y,spine.y+p.z*cos(angle));
+      }`,
+    normal:`float s=fishPivot-position.x;float angle=fishAngle(s),curvature=(fishAngle(s+.001)-fishAngle(s-.001))/.002;
+      vec3 localNormal=vec3(normal.x/max(.3,1.-position.z*curvature),normal.y,normal.z);
+      objectNormal=normalize(vec3(localNormal.x*cos(angle)+localNormal.z*sin(angle),localNormal.y,-localNormal.x*sin(angle)+localNormal.z*cos(angle)));`,
     begin:`vPart=part;vAnatomy=position;vSkinUv=uv;vTrim=fishTrim.zw;
-      transformed.z+=fishFlex(position.x);
+      transformed=fishDeform(position);
       // A pectoral rows through an abduction–adduction cycle rather than flapping: the
       // blade sweeps out and then back along the flank, so the stroke has a fore-aft part.
       if(part>1.5&&part<3.5){

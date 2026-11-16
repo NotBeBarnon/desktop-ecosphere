@@ -238,14 +238,19 @@ export class ReefSimulation {
     const g=GAIT[f.kind],r=this.random,ease=k=>1-Math.exp(-dt*k);
     f.steer.lerp(want,ease(f.alarm>0?12:4.5));
     const demand=f.steer.length();
+    let turnIntent=0;
     if(demand>.025){
       const yawTo=Math.atan2(-f.steer.z,f.steer.x),angle=Math.atan2(Math.sin(yawTo-f.yaw),Math.cos(yawTo-f.yaw));
       const rate=g.turn*(f.alarm>0?2.1:.32+.68*clamp(f.speed/.5,0,1));
-      f.turning+=(clamp(angle*2.8,-rate,rate)-f.turning)*ease(6);
+      turnIntent=clamp(angle*2.8,-rate,rate);
+      f.turning+=(turnIntent-f.turning)*ease(6);
       f.yaw+=f.turning*dt;
       f.pitch+=(clamp(Math.atan2(f.steer.y,Math.hypot(f.steer.x,f.steer.z)),-.60,.60)-f.pitch)*ease(2.4);
     }else{f.turning*=Math.exp(-dt*6);f.pitch*=Math.exp(-dt);}
-    f.bend+=(clamp(f.turning*.10,-.23,.23)-f.bend)*ease(6);
+    // Shape follows the intended arc slightly ahead of the root rotation. Scale
+    // curvature to body length so a slow turn bends instead of pivoting a plank.
+    const bodyTurn=(f.turning*.7+turnIntent*.3)*g.length*f.size/Math.max(.28,f.speed)*.42;
+    f.bend+=(clamp(bodyTurn,-.72,.72)-f.bend)*ease(9);
     f.bank+=(clamp(-f.turning*.055,-.13,.13)-f.bank)*ease(4);
     const h=this._heading.set(Math.cos(f.yaw)*Math.cos(f.pitch),Math.sin(f.pitch),-Math.sin(f.yaw)*Math.cos(f.pitch));
     const target=f.alarm>0?demand:Math.max(0,h.dot(f.steer));
