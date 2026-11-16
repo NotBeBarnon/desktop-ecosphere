@@ -17,10 +17,13 @@ namespace DesktopEcosphere {
         readonly System.Windows.Forms.Timer refresh=new System.Windows.Forms.Timer();
         Action readDraft;
         Action<Preferences> loadDraft;
+        readonly System.Threading.CancellationTokenSource updateCancel=new System.Threading.CancellationTokenSource();
+        Button updateButton;
+        Label updateResult;
         static TableLayoutPanel Page() { return new TableLayoutPanel { Dock=DockStyle.Fill,AutoScroll=true,ColumnCount=2,Padding=new Padding(20),AutoSize=false }; }
         static ComboBox Choice(string[] items,int selected) { var c=new ComboBox { DropDownStyle=ComboBoxStyle.DropDownList,Width=220 }; c.Items.AddRange(items); c.SelectedIndex=selected; return c; }
         static void Row(TableLayoutPanel page,string text,Control control) { int row=page.RowCount++; page.RowStyles.Add(new RowStyle(SizeType.AutoSize)); page.Controls.Add(new Label { Text=text,AutoSize=true,Margin=new Padding(0,8,18,16) },0,row); page.Controls.Add(control,1,row); }
-        public SettingsForm(Preferences source,Func<string> runtime=null,Action export=null) {
+        public SettingsForm(Preferences source,Func<string> runtime=null,Action export=null,Func<System.Threading.CancellationToken,System.Threading.Tasks.Task<UpdateInfo>> updateQuery=null) {
             Result = new Preferences { Scene=source.Scene,Quality=source.Quality,Fps=source.Fps,Paused=source.Paused,Wallpaper=source.Wallpaper,AllScreens=source.AllScreens,ScreenScenes=new Dictionary<string,string>(source.ScreenScenes),BatteryMode=source.BatteryMode,Occlusion=source.Occlusion };
             Result.FeedPortions=source.FeedPortions; Result.AutoFeedMinutes=source.AutoFeedMinutes; Result.PointerInteraction=source.PointerInteraction;
             Result.Population=source.Population;
@@ -79,7 +82,26 @@ namespace DesktopEcosphere {
             defaults.Click+=(s,e)=>{ if(MessageBox.Show("恢复场景、互动和节能的默认值？点击保存后生效。","恢复默认",MessageBoxButtons.OKCancel)==DialogResult.OK) ResetDraft(); };
             Row(transfer,"恢复默认",defaults);
             Row(transfer,"说明",new Label { Text="导入和恢复默认只修改设置草稿，保存后生效。\n导出包含尚未保存的界面设置。\n开机启动和当前壁纸/暂停状态不在设置文件中。\n恢复默认保留开机启动选项；配置文件兼容旧版本。",AutoSize=true });
+            var about=Page(); var aboutTab=new TabPage("关于与更新"); aboutTab.Controls.Add(about); tabs.TabPages.Add(aboutTab);
+            Row(about,"桌面生态缸",new Label { Text="Desktop Ecosphere v"+AppInfo.Version+" · Windows x64",AutoSize=true });
+            Row(about,"运行环境",new Label { Text=Environment.OSVersion.VersionString+"\nCLR "+Environment.Version,AutoSize=true });
+            var result=new Label { Text="仅在点击检查时联网，不自动下载或安装。",AutoSize=true,MaximumSize=new Size(420,0) };
+            var check=new Button { Text="检查更新",AutoSize=true }; var open=new Button { Text="打开版本页",AutoSize=true };
+            updateButton=check; updateResult=result;
+            string updatePage=AppInfo.Repository+"/releases";
+            check.Click+=async (s,e)=>{ check.Enabled=false; result.Text="正在查询 GitHub…";
+                try { var info=await (updateQuery==null?UpdateChecker.Check(updateCancel.Token):updateQuery(updateCancel.Token)); if(IsDisposed || Disposing) return; result.Text=info.Message; updatePage=info.Page; open.Text=info.TagOnly?"查看标签源码":"打开下载页"; }
+                catch(OperationCanceledException) { if(!IsDisposed && !Disposing) result.Text="检查已取消或超时，可稍后重试。"; }
+                catch(Exception error) { if(!IsDisposed && !Disposing) result.Text=error is System.Net.Http.HttpRequestException?"无法连接 GitHub 或访问受限，请稍后重试。":"版本信息不可用，请打开版本页查看。"; }
+                finally { if(!IsDisposed && !Disposing) check.Enabled=true; }
+            };
+            open.Click+=(s,e)=>OpenPage(updatePage); Row(about,"版本检查",check); Row(about,"检查结果",result); Row(about,"下载与历史",open);
+            var sourceButton=new Button { Text="打开项目仓库",AutoSize=true }; sourceButton.Click+=(s,e)=>OpenPage(AppInfo.Repository); Row(about,"源码与反馈",sourceButton);
+            Row(about,"许可",new Label { Text="MIT · 原始场景来自 Chase Lean / Desktop Habitats。\n构建包附带本项目、上游及 WebView2 许可。",AutoSize=true });
+            FormClosed+=(s,e)=>{ updateCancel.Cancel(); updateCancel.Dispose(); };
         }
+        internal bool CheckUpdateForTest() { tabs.SelectedIndex=tabs.TabPages.Count-1; tabs.Update(); updateButton.PerformClick(); return updateResult.Text.Contains("最新稳定标签"); }
+        void OpenPage(string url) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) {UseShellExecute=true}); } catch(Exception error) { MessageBox.Show("无法打开浏览器："+error.Message); } }
         internal string ExportDraft() { readDraft(); return SettingsProfile.Export(Result); }
         internal void ImportDraft(string json) { loadDraft(SettingsProfile.Parse(json)); }
         internal void ResetDraft() { loadDraft(new Preferences()); }

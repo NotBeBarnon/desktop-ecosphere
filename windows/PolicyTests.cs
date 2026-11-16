@@ -4,6 +4,7 @@ namespace DesktopEcosphere {
     static class PolicyTests {
         static void Equal(double expected,double actual,string label) { if(Math.Abs(expected-actual)>0.001) throw new Exception(label+": "+actual); Console.WriteLine("PASS "+label); }
         static void Main() {
+            UpdateCheckerTests.Run();
             SettingsProfileTests.Run();
             Equal(1,LightingPolicy.Multiplier(100,false,new DateTime(2026,1,1,0,0,0)),"手动亮度不随时间变化");
             Equal(0.35,LightingPolicy.Multiplier(100,true,new DateTime(2026,1,1,0,0,0)),"夜间亮度下限");

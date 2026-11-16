@@ -167,7 +167,7 @@ namespace DesktopEcosphere {
         async Task WriteDiagnostics(string path) {
             var serializer=new System.Web.Script.Serialization.JavaScriptSerializer();
             var reports=new List<object>(); foreach(var surface in surfaces.ToArray()) if(!surface.IsDisposed) reports.Add(serializer.DeserializeObject(await surface.Diagnostics()));
-            var report=new { version="0.8.0",createdUtc=DateTime.UtcNow.ToString("o"),windows=Environment.OSVersion.VersionString,status=RuntimeStatus(),webview=web.CoreWebView2==null?null:web.CoreWebView2.Environment.BrowserVersionString,displays=Screen.AllScreens.Select(x=>new {device=x.DeviceName,primary=x.Primary,x=x.Bounds.X,y=x.Bounds.Y,width=x.Bounds.Width,height=x.Bounds.Height}).ToArray(),surfaces=reports,preview=serializer.DeserializeObject(await Script("window.habitatStats?.() || null")) };
+            var report=new { version=AppInfo.Version,createdUtc=DateTime.UtcNow.ToString("o"),windows=Environment.OSVersion.VersionString,status=RuntimeStatus(),webview=web.CoreWebView2==null?null:web.CoreWebView2.Environment.BrowserVersionString,displays=Screen.AllScreens.Select(x=>new {device=x.DeviceName,primary=x.Primary,x=x.Bounds.X,y=x.Bounds.Y,width=x.Bounds.Width,height=x.Bounds.Height}).ToArray(),surfaces=reports,preview=serializer.DeserializeObject(await Script("window.habitatStats?.() || null")) };
             File.WriteAllText(path,serializer.Serialize(report));
         }
         Preferences LoadPreferences() {
@@ -304,12 +304,14 @@ namespace DesktopEcosphere {
                 prefs.Population=profile; Navigate(); timer.Start();
                 for(int i=0;i<240 && !ready;i++) await Task.Delay(500);
                 if(!ready) throw new Exception("鱼群密度场景加载超时："+profile);
-                await Task.Delay(800); timer.Stop();
+                await Task.Delay(200);
                 int expected=prefs.Scene=="riverscape"?(profile=="sparse"?12:profile=="lively"?36:24):(profile=="sparse"?12:profile=="lively"?28:19);
                 string actual=await Script("(()=>{const s=habitatStats();return s.fishCount??(s.population.clownfish+s.population.chromis+s.population.anthias)})()");
                 if(actual!=expected.ToString(CultureInfo.InvariantCulture)) throw new Exception("鱼群数量不匹配："+profile+" "+actual);
                 string healthy=await Script("(()=>{const s=habitatStats();return Boolean((s.renderedFrames||s.frames)>0 && !s.contextLost && s.finite!==false)})()");
-                if(healthy!="true") throw new Exception("密度切换后场景状态异常："+profile);
+                for(int i=0;i<75 && healthy!="true";i++) { await Task.Delay(200); healthy=await Script("(()=>{const s=habitatStats();return Boolean((s.renderedFrames||s.frames)>0 && !s.contextLost && s.finite!==false)})()"); }
+                timer.Stop();
+                if(healthy!="true") throw new Exception("密度切换后场景状态异常："+profile+" "+await Script("habitatStats()"));
                 reports.Add(new {profile,expected,actual=int.Parse(actual),healthy=true});
             }
             File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-population-"+prefs.Scene+".json"),new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(reports));
@@ -333,7 +335,7 @@ namespace DesktopEcosphere {
         }
         async Task Smoke() {
             if(prefs.Scene=="riverscape") {
-                using(var settingsWindow=new SettingsForm(prefs,RuntimeStatus,null)) {
+                using(var settingsWindow=new SettingsForm(prefs,RuntimeStatus,null,token=>Task.FromResult(UpdateChecker.Tags("[{\"name\":\"v0.9.0\"}]")))) {
                     settingsWindow.Show(); await Task.Delay(500);
                     var imported=new Preferences { Scene="reefscape",Population="lively",Fps=60,AutoFeedMinutes=15,FeedPortions=3,Brightness=75,DayNight=true };
                     imported.ScreenScenes["offline-smoke-screen"]="reefscape";
@@ -345,6 +347,7 @@ namespace DesktopEcosphere {
                     settingsWindow.ResetDraft(); draft=SettingsProfile.Parse(settingsWindow.ExportDraft());
                     if(draft.Brightness!=100 || draft.DayNight) throw new Exception("灯光默认值恢复失败");
                     if(draft.Scene!="riverscape" || draft.Fps!=30 || draft.Population!="standard" || draft.AutoFeedMinutes!=0 || draft.ScreenScenes.Count!=0) throw new Exception("设置界面恢复默认失败");
+                    if(!settingsWindow.CheckUpdateForTest()) throw new Exception("更新检查界面未显示标签提示");
                     settingsWindow.CaptureTabs(AppDomain.CurrentDomain.BaseDirectory); settingsWindow.Close();
                     File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-settings-transfer.json"),"{\"import\":true,\"export\":true,\"reset\":true,\"draftIsolated\":true}");
                 }

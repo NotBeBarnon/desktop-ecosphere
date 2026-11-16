@@ -2,7 +2,7 @@
 
 为 Windows 桌面添加实时淡水生态缸或珊瑚海水缸。基于 C#、WinForms、WebView2 和 Three.js/WebGL2，离线运行。
 
-当前版本：**v0.8.0** · 仓库：[NotBeBarnon/desktop-ecosphere](https://github.com/NotBeBarnon/desktop-ecosphere)
+当前版本：**v0.9.0** · 仓库：[NotBeBarnon/desktop-ecosphere](https://github.com/NotBeBarnon/desktop-ecosphere)
 
 ![场景预览](upstream/docs/images/riverscape-wide.png)
 
@@ -17,6 +17,7 @@
 - 实时状态、本地 JSON 诊断、壁纸窗口失效恢复。
 - 设置导入、导出和恢复默认，支持迁移已有配置。
 - 灯光亮度与可选的本地时间昼夜渐变。
+- 关于页面和手动 GitHub 版本检查。
 - 当前用户安装、快捷方式和卸载入口。
 
 ## 运行与编译
@@ -30,7 +31,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build-installer.ps1
 ```
 
-产物为 `dist/DesktopEcosphere-v0.8/DesktopEcosphere.exe`、`dist/DesktopEcosphere-Windows-x64-v0.8.zip` 和 `dist/DesktopEcosphere-Setup-v0.8.exe`。
+产物为 `dist/DesktopEcosphere-v0.9/DesktopEcosphere.exe`、`dist/DesktopEcosphere-Windows-x64-v0.9.zip` 和 `dist/DesktopEcosphere-Setup-v0.9.exe`。
 
 安装位置为 `%LOCALAPPDATA%/Programs/DesktopEcosphere`，无需管理员权限。安装包不包含 WebView2 Runtime，尚未代码签名。升级前先从托盘退出旧版。
 
@@ -56,17 +57,27 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build-installe
 
 文件包括场景、画质、鱼群密度、互动、投食、节能和每屏场景，不携带开机启动、当前壁纸模式和暂停状态。恢复默认也保留开机启动选择。支持带格式标识和版本号的便携文件，以及旧版本原始 `settings.json`。缺少的选项采用默认值，离线屏幕设置保留；错误值、不支持的版本或超过 64 KB 的文件会被拒绝。
 
+## 关于与更新
+
+“设置 → 关于与更新”显示应用版本、系统/CLR 环境和项目入口。只有点击“检查更新”时才向 GitHub 发起公开查询，不读取 Git 登录凭据，不上传个人设置，不自动下载安装程序。
+
+优先查询本仓库最新正式 Release；没有 Release 时查询最近 100 个标签中的最高稳定版本。草稿、预发布和非三段式版本号不参加比较。标签只提供源码入口，不能替代已发布的安装包。API 超时、限流或离线时提示检查不可用，可自行打开 GitHub 版本页查看。
+
+当前仓库以提交和标签发布源码，尚未上传 GitHub Release 安装包；安装产物仍由本地打包脚本生成。
+
 ## 验证
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\test-policy.ps1
 node .\upstream\scenes\shared\population.test.mjs
 node .\upstream\scenes\shared\lighting.test.mjs
-.\dist\DesktopEcosphere-v0.8\DesktopEcosphere.exe --smoke-test
+.\dist\DesktopEcosphere-v0.9\DesktopEcosphere.exe --smoke-test
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\verify.ps1
 ```
 
 烟雾测试临时打开场景、设置和壁纸窗口，完成后还原并退出。输出诊断与截图，不保存用户设置或开启自启动。电源集成测试模拟本程序收到的消息，不实际关闭显示器。
+
+离线策略测试包括更新响应、版本比较、标签回退、取消及限流；UI 测试注入固定响应，不会隐式联网。可选运行 `windows/test-updates.ps1` 查询真实 GitHub API；此步骤依赖网络及未认证 API 配额，本次环境实际返回了限流提示。
 
 安装器支持 `--integration-test <不存在的测试目录>`，在隔离目录验证安装资源、快捷方式目标、卸载和用户文件保护，不修改用户桌面、开始菜单或注册表。
 
@@ -76,7 +87,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\verify.ps1
 - 遮挡按窗口矩形联合面积估算，覆盖 ≥70% 时最高 10 FPS，≥98% 时暂停；透明窗口可能产生估算偏差。
 - 帧率是上限，实际表现受显卡、画质和节能状态影响。
 - WorkerW 不是微软公开承诺稳定的壁纸接口，不同系统构建可能有差异。
-- 尚无代码签名、自动更新、单独鱼种的数量调整、生物作息系统或养成存档。
+- 尚无代码签名、自动下载安装更新、单独鱼种的数量调整、生物作息系统或养成存档。
 
 ## 版本提交
 
