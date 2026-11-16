@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$output = Join-Path (Split-Path $PSScriptRoot) 'dist\DesktopEcosphere-v0.5'
+$output = Join-Path (Split-Path $PSScriptRoot) 'dist\DesktopEcosphere-v0.6'
 foreach ($scene in @('riverscape','reefscape')) {
     $report = Get-Content "$output\smoke-$scene.json" -Raw | ConvertFrom-Json
     if ($scene -eq 'riverscape') {
@@ -11,6 +11,10 @@ foreach ($scene in @('riverscape','reefscape')) {
         if ($report.stopped.food -le 0) { throw "$scene 投食未生效" }
     }
     Write-Host "PASS $scene 渲染、暂停、恢复"
+    $profiles=Get-Content "$output\smoke-population-$scene.json" -Raw | ConvertFrom-Json
+    if($profiles.Count -ne 3) { throw "$scene 密度档位测试不完整" }
+    foreach($profile in $profiles) { if($profile.actual -ne $profile.expected -or !$profile.healthy) { throw "$scene 密度档位验证失败" } }
+    Write-Host "PASS $scene 三档鱼群密度和切换渲染"
     $interaction=Get-Content "$output\smoke-interaction-$scene.json" -Raw | ConvertFrom-Json
     if(!$interaction.blocked -or !$interaction.enabled -or !$interaction.portions) { throw "$scene 互动或份量验证失败" }
     Write-Host "PASS $scene 鼠标互动开关、投食份量"

@@ -20,6 +20,7 @@ namespace DesktopEcosphere {
         public SettingsForm(Preferences source,Func<string> runtime=null,Action export=null) {
             Result = new Preferences { Scene=source.Scene,Quality=source.Quality,Fps=source.Fps,Paused=source.Paused,Wallpaper=source.Wallpaper,AllScreens=source.AllScreens,ScreenScenes=new Dictionary<string,string>(source.ScreenScenes),BatteryMode=source.BatteryMode,Occlusion=source.Occlusion };
             Result.FeedPortions=source.FeedPortions; Result.AutoFeedMinutes=source.AutoFeedMinutes; Result.PointerInteraction=source.PointerInteraction;
+            Result.Population=source.Population;
             Text="桌面生态缸 · 设置"; ClientSize=new Size(670,520); MinimumSize=new Size(640,500); StartPosition=FormStartPosition.CenterParent;
             Font=new Font("Microsoft YaHei UI",10); AutoScaleMode=AutoScaleMode.Dpi;
             Controls.Add(tabs);
@@ -27,6 +28,8 @@ namespace DesktopEcosphere {
             var scene=Choice(new[]{"淡水生态缸","珊瑚海水缸"},source.Scene=="reefscape"?1:0); Row(general,"默认场景",scene);
             var quality=Choice(new[]{"节能","均衡","精细"},source.Quality=="eco"?0:source.Quality=="detail"?2:1); Row(general,"画质",quality);
             var fps=Choice(new[]{"15 FPS","30 FPS","60 FPS"},source.Fps==15?0:source.Fps==60?2:1); Row(general,"帧率上限",fps);
+            var population=Choice(new[]{"清静","标准","热闹"},source.Population=="sparse"?0:source.Population=="lively"?2:1); Row(general,"鱼群密度",population);
+            Row(general,"数量说明",new Label { Text="淡水：12 / 24 / 36 条。\n海水：12 / 19 / 28 条，另有 2 只虾。\n修改密度会重新加载场景。",AutoSize=true });
             var startup=new CheckBox { Text="登录 Windows 后启动",AutoSize=true,Checked=StartupEnabled() }; Row(general,"开机启动",startup);
             Row(general,"说明",new Label { Text="画质、帧率受显卡和节能策略影响。\n设置在点击“保存”后生效。",AutoSize=true });
             var interaction=Page(); var interactionTab=new TabPage("互动与投食"); interactionTab.Controls.Add(interaction); tabs.TabPages.Add(interactionTab);
@@ -52,8 +55,7 @@ namespace DesktopEcosphere {
             FormClosed+=(s,e)=>{ refresh.Stop(); refresh.Dispose(); };
             var buttons=new FlowLayoutPanel { Dock=DockStyle.Bottom,Height=58,FlowDirection=FlowDirection.RightToLeft,Padding=new Padding(10) }; Controls.Add(buttons);
             var ok=new Button { Text="保存",AutoSize=true }; var cancel=new Button { Text="取消",DialogResult=DialogResult.Cancel,AutoSize=true }; buttons.Controls.Add(ok); buttons.Controls.Add(cancel); AcceptButton=ok; CancelButton=cancel;
-            ok.Click+=(s,e)=>{ Result.Scene=scene.SelectedIndex==0?"riverscape":"reefscape"; Result.Quality=new[]{"eco","balanced","detail"}[quality.SelectedIndex]; Result.Fps=new[]{15,30,60}[fps.SelectedIndex]; Result.AllScreens=all.Checked; Result.BatteryMode=new[]{"limit","pause","normal"}[battery.SelectedIndex]; Result.Occlusion=covered.Checked; Startup=startup.Checked; DialogResult=DialogResult.OK; };
-            ok.Click+=(s,e)=>{ Result.FeedPortions=portions.SelectedIndex+1; Result.AutoFeedMinutes=intervals[interval.SelectedIndex]; Result.PointerInteraction=pointer.Checked; };
+            ok.Click+=(s,e)=>{ Result.Scene=scene.SelectedIndex==0?"riverscape":"reefscape"; Result.Quality=new[]{"eco","balanced","detail"}[quality.SelectedIndex]; Result.Fps=new[]{15,30,60}[fps.SelectedIndex]; Result.AllScreens=all.Checked; Result.BatteryMode=new[]{"limit","pause","normal"}[battery.SelectedIndex]; Result.Occlusion=covered.Checked; Result.FeedPortions=portions.SelectedIndex+1; Result.AutoFeedMinutes=intervals[interval.SelectedIndex]; Result.PointerInteraction=pointer.Checked; Result.Population=new[]{"sparse","standard","lively"}[population.SelectedIndex]; Startup=startup.Checked; DialogResult=DialogResult.OK; };
         }
         internal void CaptureTabs(string folder) {
             for(int i=0;i<tabs.TabPages.Count;i++) { tabs.SelectedIndex=i; tabs.Update(); Update(); using(var bitmap=new Bitmap(Width,Height)) { DrawToBitmap(bitmap,new Rectangle(Point.Empty,bitmap.Size)); bitmap.Save(System.IO.Path.Combine(folder,"smoke-settings-"+i+".png")); } }

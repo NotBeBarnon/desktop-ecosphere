@@ -28,7 +28,8 @@ namespace DesktopEcosphere {
         [DataMember] public int FeedPortions=1;
         [DataMember] public int AutoFeedMinutes;
         [DataMember] public bool PointerInteraction=true;
-        [OnDeserializing] void Defaults(StreamingContext context) { BatteryMode="limit"; Occlusion=true; FeedPortions=1; PointerInteraction=true; }
+        [DataMember] public string Population="standard";
+        [OnDeserializing] void Defaults(StreamingContext context) { BatteryMode="limit"; Occlusion=true; FeedPortions=1; PointerInteraction=true; Population="standard"; }
     }
     static class Program {
         internal static readonly string Data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DesktopHabitatsWindows");
@@ -98,6 +99,7 @@ namespace DesktopEcosphere {
                     try { SettingsForm.SetStartup(dialog.Startup); } catch(Exception ex) { MessageBox.Show("开机启动设置失败："+ex.Message); return; }
                     var value=dialog.Result;
                     prefs.FeedPortions=value.FeedPortions; prefs.AutoFeedMinutes=value.AutoFeedMinutes; prefs.PointerInteraction=value.PointerInteraction; feedClock.Reset();
+                    prefs.Population=value.Population;
                     prefs.Scene=value.Scene; prefs.Quality=value.Quality; prefs.Fps=value.Fps; prefs.AllScreens=value.AllScreens; prefs.ScreenScenes=value.ScreenScenes; prefs.BatteryMode=value.BatteryMode; prefs.Occlusion=value.Occlusion;
                     scene.SelectedIndex=prefs.Scene=="reefscape"?1:0; quality.SelectedIndex=prefs.Quality=="eco"?0:prefs.Quality=="detail"?2:1; fps.SelectedIndex=prefs.Fps==15?0:prefs.Fps==60?2:1;
                     Save(); Navigate(); if(wallpaper) RebuildSurfaces();
@@ -161,7 +163,7 @@ namespace DesktopEcosphere {
         async Task WriteDiagnostics(string path) {
             var serializer=new System.Web.Script.Serialization.JavaScriptSerializer();
             var reports=new List<object>(); foreach(var surface in surfaces.ToArray()) if(!surface.IsDisposed) reports.Add(serializer.DeserializeObject(await surface.Diagnostics()));
-            var report=new { version="0.5.0",createdUtc=DateTime.UtcNow.ToString("o"),windows=Environment.OSVersion.VersionString,status=RuntimeStatus(),webview=web.CoreWebView2==null?null:web.CoreWebView2.Environment.BrowserVersionString,displays=Screen.AllScreens.Select(x=>new {device=x.DeviceName,primary=x.Primary,x=x.Bounds.X,y=x.Bounds.Y,width=x.Bounds.Width,height=x.Bounds.Height}).ToArray(),surfaces=reports,preview=serializer.DeserializeObject(await Script("window.habitatStats?.() || null")) };
+            var report=new { version="0.6.0",createdUtc=DateTime.UtcNow.ToString("o"),windows=Environment.OSVersion.VersionString,status=RuntimeStatus(),webview=web.CoreWebView2==null?null:web.CoreWebView2.Environment.BrowserVersionString,displays=Screen.AllScreens.Select(x=>new {device=x.DeviceName,primary=x.Primary,x=x.Bounds.X,y=x.Bounds.Y,width=x.Bounds.Width,height=x.Bounds.Height}).ToArray(),surfaces=reports,preview=serializer.DeserializeObject(await Script("window.habitatStats?.() || null")) };
             File.WriteAllText(path,serializer.Serialize(report));
         }
         Preferences LoadPreferences() {
@@ -171,6 +173,7 @@ namespace DesktopEcosphere {
                 if(p.Fps != 15 && p.Fps != 30 && p.Fps != 60) p.Fps = 30;
                 if(p.BatteryMode!="limit" && p.BatteryMode!="pause" && p.BatteryMode!="normal") p.BatteryMode="limit";
                 p.FeedPortions=Math.Max(1,Math.Min(3,p.FeedPortions));
+                if(p.Population!="sparse" && p.Population!="lively" && p.Population!="standard") p.Population="standard";
                 if(!new[]{0,1,5,15,30,60}.Contains(p.AutoFeedMinutes)) p.AutoFeedMinutes=0;
                 if(p.ScreenScenes == null) p.ScreenScenes = new Dictionary<string,string>();
                 foreach(var device in p.ScreenScenes.Keys.ToArray()) if(p.ScreenScenes[device] != "riverscape" && p.ScreenScenes[device] != "reefscape") p.ScreenScenes.Remove(device);
@@ -199,7 +202,7 @@ namespace DesktopEcosphere {
                 if(Program.Smoke) await Smoke(); else if(prefs.Wallpaper) Attach();
             } catch(Exception e) { Program.Log(e); status.Text = "初始化失败：" + e.Message; if(Program.Smoke) { Environment.ExitCode = 1; File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-error.txt"),e.ToString()); Close(); } else MessageBox.Show(e.Message + "\n请确认 Microsoft Edge WebView2 Runtime 已安装。","启动失败"); }
         }
-        void Navigate(bool retry=false) { if(web.CoreWebView2 == null) return; navigating=true; ready=false; appliedRate=-1; appliedInteraction=null; lastPointer=""; feedClock.Reset(); loadWatch.Start(retry); web.CoreWebView2.Navigate("https://habitat.local/scenes/" + prefs.Scene + "/wallpaper.html?quality=" + prefs.Quality); status.Text="正在加载场景…"; }
+        void Navigate(bool retry=false) { if(web.CoreWebView2 == null) return; navigating=true; ready=false; appliedRate=-1; appliedInteraction=null; lastPointer=""; feedClock.Reset(); loadWatch.Start(retry); web.CoreWebView2.Navigate("https://habitat.local/scenes/" + prefs.Scene + "/wallpaper.html?quality=" + prefs.Quality + "&population=" + prefs.Population); status.Text="正在加载场景…"; }
         async Task<string> Script(string script) { if(closing || web.CoreWebView2 == null) return "null"; try { return await web.CoreWebView2.ExecuteScriptAsync(script); } catch(Exception e) { Program.Log(e); return "null"; } }
         int Rate() {
             return EnergyPolicy.Rate(prefs.Fps,wallpaper || prefs.Paused || locked || suspended || displayOff || WindowState==FormWindowState.Minimized,Program.OnBattery,prefs.BatteryMode,0);
@@ -288,6 +291,25 @@ namespace DesktopEcosphere {
             } finally { Program.TestBattery=null; prefs.BatteryMode=original; displayOff=false; }
             await Tick();
         }
+        async Task VerifyPopulationProfiles() {
+            var reports=new List<object>();
+            foreach(var profile in new[]{"sparse","standard","lively"}) {
+                prefs.Population=profile; Navigate(); timer.Start();
+                for(int i=0;i<240 && !ready;i++) await Task.Delay(500);
+                if(!ready) throw new Exception("鱼群密度场景加载超时："+profile);
+                await Task.Delay(800); timer.Stop();
+                int expected=prefs.Scene=="riverscape"?(profile=="sparse"?12:profile=="lively"?36:24):(profile=="sparse"?12:profile=="lively"?28:19);
+                string actual=await Script("(()=>{const s=habitatStats();return s.fishCount??(s.population.clownfish+s.population.chromis+s.population.anthias)})()");
+                if(actual!=expected.ToString(CultureInfo.InvariantCulture)) throw new Exception("鱼群数量不匹配："+profile+" "+actual);
+                string healthy=await Script("(()=>{const s=habitatStats();return Boolean((s.renderedFrames||s.frames)>0 && !s.contextLost && s.finite!==false)})()");
+                if(healthy!="true") throw new Exception("密度切换后场景状态异常："+profile);
+                reports.Add(new {profile,expected,actual=int.Parse(actual),healthy=true});
+            }
+            File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-population-"+prefs.Scene+".json"),new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(reports));
+            prefs.Population="standard"; Navigate(); timer.Start();
+            for(int i=0;i<240 && !ready;i++) await Task.Delay(500);
+            if(!ready) throw new Exception("恢复标准鱼群密度失败"); timer.Stop();
+        }
         async Task Smoke() {
             if(prefs.Scene=="riverscape") {
                 using(var settingsWindow=new SettingsForm(prefs,RuntimeStatus,null)) { settingsWindow.Show(); await Task.Delay(500); settingsWindow.CaptureTabs(AppDomain.CurrentDomain.BaseDirectory); settingsWindow.Close(); }
@@ -320,6 +342,7 @@ namespace DesktopEcosphere {
             if(!blocked || !enabled || !portions) throw new Exception("鼠标互动开关或投食份量验证失败");
             File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-interaction-"+prefs.Scene+".json"),new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new {blocked,enabled,portions}));
             using(var f = File.Create(target + ".png")) await web.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,f);
+            await VerifyPopulationProfiles();
             if(prefs.Scene == "riverscape") { prefs.Scene = "reefscape"; Navigate(); timer.Start(); await Smoke(); } else {
                 var host = Native.FindWallpaperHost();
                 if(host != IntPtr.Zero) {

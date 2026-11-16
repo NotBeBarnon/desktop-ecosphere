@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { reefCounts } from '../../shared/population.js';
 import { randomGenerator, clamp, groundHeight, limitVector } from './math.js';
 import { currentAt } from './water.js';
 import { supportHeight } from './terrain.js';
@@ -115,7 +116,8 @@ export function seatShrimp(x,z,yaw){
 }
 
 export class ReefSimulation {
-  constructor(seed=36719) {
+  constructor(seed=36719,{population='standard'}={}) {
+    this.population=reefCounts(population);
     this.random=randomGenerator(seed);this.time=0;this.fish=[];this.food=Array.from({length:32},()=>({active:false,position:V(),velocity:V(),age:0,size:0}));
     this.lastFeed=-10;this.consumed=0;this.steps=0;
     this._flow=V();this._delta=V();this._desired=V();this._force=V();this._sep=V();this._cohesion=V();this._align=V();this._relative=V();this._heading=V();this.navigation=reefNavigation();
@@ -125,10 +127,10 @@ export class ReefSimulation {
     // These three sizes are that ladder, so the group reads as a queue rather than a trio.
     const initial=[[-5.15,4.18,2.1],[-2.78,3.99,1.85],[-3.54,3.85,2.35]];
     for(let i=0;i<3;i++)this.add('clown',initial[i],[.84,.66,.48][i],i);
-    for(let i=0;i<9;i++)this.add('chromis',null,.63+(i?this.random()*.13:.15),i,i%2);
+    for(let i=0;i<this.population.chromis;i++)this.add('chromis',null,.63+(i?this.random()*.13:.15),i,i%2);
     // Rank 0 is the terminal male. FishBase puts the male at 15 cm against 7 cm for the
     // female, and an aquarium harem at about 12.5 cm to 9; he is half again their length.
-    for(let i=0;i<7;i++)this.add('anthias',null,(i?.66:1.00)+this.random()*.09,i,2);
+    for(let i=0;i<this.population.anthias;i++)this.add('anthias',null,(i?.66:1.00)+this.random()*.09,i,2);
     this.previous=this.fish.map(()=>({p:V(),v:V(),alarm:0}));
     // The shrimp draw from their own stream. Sharing the fish's made every tuning of a walk
     // bout shift nineteen fish trajectories with it, which is a trap rather than a coupling.
@@ -557,7 +559,7 @@ export class ReefSimulation {
     }
   }
   diagnostics(){
-    return {time:this.time,steps:this.steps,population:POPULATION,food:this.food.filter(p=>p.active).length,consumed:this.consumed,
+    return {time:this.time,steps:this.steps,population:{...this.population},food:this.food.filter(p=>p.active).length,consumed:this.consumed,
       maxSpeed:Math.max(...this.fish.map(f=>f.velocity.length())),finite:this.fish.every(f=>[...f.position,...f.velocity,f.yaw,f.phase].every(Number.isFinite))};
   }
 }

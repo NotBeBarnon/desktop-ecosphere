@@ -42,7 +42,7 @@ namespace HabitatsSetup {
                 File.Copy(Application.ExecutablePath,helper);
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(helper,"--finish-uninstall "+System.Diagnostics.Process.GetCurrentProcess().Id) { UseShellExecute=false,CreateNoWindow=true });
 #else
-                var form=new Form { Text="桌面生态缸 v0.5 · 安装",ClientSize=new Size(560,250),StartPosition=FormStartPosition.CenterScreen,Font=new Font("Microsoft YaHei UI",10),FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false };
+                var form=new Form { Text="桌面生态缸 v0.6 · 安装",ClientSize=new Size(560,250),StartPosition=FormStartPosition.CenterScreen,Font=new Font("Microsoft YaHei UI",10),FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false };
                 form.Controls.Add(new Label { Text="将为当前用户安装桌面生态缸\n\n安装位置："+Root+"\n\n需要 .NET Framework 4.8 和 WebView2 Runtime。\n安装后创建桌面和开始菜单快捷方式，不自动开启开机启动。",Bounds=new Rectangle(24,24,510,160) });
                 var install=new Button { Text="安装",Bounds=new Rectangle(420,195,100,32) }; form.Controls.Add(install);
                 install.Click+=(s,e)=>{ try { RequireClosed(); install.Enabled=false; Install(); MessageBox.Show("安装完成，可从桌面快捷方式启动。","桌面生态缸"); form.Close(); } catch(Exception error) { install.Enabled=true; MessageBox.Show(error.Message,"安装失败"); } }; Application.Run(form);
@@ -67,7 +67,7 @@ namespace HabitatsSetup {
             if(testMode) return;
             Link(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),"桌面生态缸.lnk"));
             Link(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"桌面生态缸.lnk"));
-            using(var key=Registry.CurrentUser.CreateSubKey(Key)) { key.SetValue("DisplayName","桌面生态缸"); key.SetValue("DisplayVersion","0.5.0"); key.SetValue("InstallLocation",Root); key.SetValue("UninstallString","\""+Path.Combine(Root,"Uninstall.exe")+"\""); key.SetValue("DisplayIcon",Path.Combine(Root,"DesktopEcosphere.exe")); key.SetValue("NoModify",1); key.SetValue("NoRepair",1); }
+            using(var key=Registry.CurrentUser.CreateSubKey(Key)) { key.SetValue("DisplayName","桌面生态缸"); key.SetValue("DisplayVersion","0.6.0"); key.SetValue("InstallLocation",Root); key.SetValue("UninstallString","\""+Path.Combine(Root,"Uninstall.exe")+"\""); key.SetValue("DisplayIcon",Path.Combine(Root,"DesktopEcosphere.exe")); key.SetValue("NoModify",1); key.SetValue("NoRepair",1); }
         }
         static void Link(string path) { Type type=Type.GetTypeFromProgID("WScript.Shell"); object shell=Activator.CreateInstance(type); object shortcut=type.InvokeMember("CreateShortcut",BindingFlags.InvokeMethod,null,shell,new object[]{path}); var shortcutType=shortcut.GetType(); shortcutType.InvokeMember("TargetPath",BindingFlags.SetProperty,null,shortcut,new object[]{Path.Combine(Root,"DesktopEcosphere.exe")}); shortcutType.InvokeMember("WorkingDirectory",BindingFlags.SetProperty,null,shortcut,new object[]{Root}); shortcutType.InvokeMember("Save",BindingFlags.InvokeMethod,null,shortcut,null); System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shortcut); System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell); }
         static bool OwnShortcut(string path) {

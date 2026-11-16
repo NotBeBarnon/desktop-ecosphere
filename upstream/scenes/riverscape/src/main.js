@@ -1,4 +1,5 @@
 import { qualityName, frameRate } from '../../shared/render-policy.js';
+import { riverCount, populationName } from '../../shared/population.js';
 import { installControls, reportSceneError, preferredQuality } from '../../shared/controls.js';
 import { createComposite } from './composite.js';
 import * as THREE from "three";
@@ -160,6 +161,7 @@ async function start() {
   });
   const food = createFood(scene, { thickets: plants.thickets });
   const fish = createFishSchool(scene, {
+    count: riverCount(query.get('population')),
     obstacles,
     landmarks,
     thickets: plants.thickets,
@@ -337,6 +339,7 @@ async function start() {
   });
   updateControls();
   window.habitatStats = () => ({
+    population: populationName(query.get('population')), fishCount: fish.getTelemetry().count,
     profile, onBattery, resolution: settings.resolution,
     framebuffer: [target.width, target.height], samples: target.samples,
     shadowSize: settings.shadowSize,

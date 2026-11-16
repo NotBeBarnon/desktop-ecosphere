@@ -70,7 +70,7 @@ namespace DesktopEcosphere {
             string scene; if(!prefs.ScreenScenes.TryGetValue(screen.DeviceName,out scene)) scene = prefs.Scene;
             Ready = false; appliedRate = -1; pointer = "";
             navigating=true; appliedInteraction=null; feedClock.Reset(); loadWatch.Start(retry);
-            web.CoreWebView2.Navigate("https://habitat.local/scenes/" + scene + "/wallpaper.html?quality=" + prefs.Quality);
+            web.CoreWebView2.Navigate("https://habitat.local/scenes/" + scene + "/wallpaper.html?quality=" + prefs.Quality + "&population=" + prefs.Population);
         }
         async Task<string> Script(string script) {
             if(closing || web.CoreWebView2 == null) return "null";
