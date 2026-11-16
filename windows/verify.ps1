@@ -1,5 +1,8 @@
 $ErrorActionPreference = 'Stop'
-$output = Join-Path (Split-Path $PSScriptRoot) 'dist\DesktopEcosphere-v0.6'
+$output = Join-Path (Split-Path $PSScriptRoot) 'dist\DesktopEcosphere-v0.7'
+$transfer=Get-Content "$output\smoke-settings-transfer.json" -Raw | ConvertFrom-Json
+if(!$transfer.import -or !$transfer.export -or !$transfer.reset -or !$transfer.draftIsolated) { throw '设置导入导出、恢复默认或草稿隔离失败' }
+Write-Host 'PASS 设置界面导入导出、恢复默认、草稿隔离'
 foreach ($scene in @('riverscape','reefscape')) {
     $report = Get-Content "$output\smoke-$scene.json" -Raw | ConvertFrom-Json
     if ($scene -eq 'riverscape') {

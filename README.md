@@ -2,7 +2,7 @@
 
 为 Windows 桌面添加实时淡水生态缸或珊瑚海水缸。基于 C#、WinForms、WebView2 和 Three.js/WebGL2，离线运行。
 
-当前版本：**v0.6.0** · 仓库：[NotBeBarnon/desktop-ecosphere](https://github.com/NotBeBarnon/desktop-ecosphere)
+当前版本：**v0.7.0** · 仓库：[NotBeBarnon/desktop-ecosphere](https://github.com/NotBeBarnon/desktop-ecosphere)
 
 ![场景预览](upstream/docs/images/riverscape-wide.png)
 
@@ -15,6 +15,7 @@
 - 清静、标准、热闹三档鱼群密度，设置后重新加载场景。
 - 场景异常最多自动重试两次，支持手动重新加载。
 - 实时状态、本地 JSON 诊断、壁纸窗口失效恢复。
+- 设置导入、导出和恢复默认，支持迁移已有配置。
 - 当前用户安装、快捷方式和卸载入口。
 
 ## 运行与编译
@@ -28,7 +29,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build-installer.ps1
 ```
 
-产物为 `dist/DesktopEcosphere-v0.6/DesktopEcosphere.exe`、`dist/DesktopEcosphere-Windows-x64-v0.6.zip` 和 `dist/DesktopEcosphere-Setup-v0.6.exe`。
+产物为 `dist/DesktopEcosphere-v0.7/DesktopEcosphere.exe`、`dist/DesktopEcosphere-Windows-x64-v0.7.zip` 和 `dist/DesktopEcosphere-Setup-v0.7.exe`。
 
 安装位置为 `%LOCALAPPDATA%/Programs/DesktopEcosphere`，无需管理员权限。安装包不包含 WebView2 Runtime，尚未代码签名。升级前先从托盘退出旧版。
 
@@ -42,12 +43,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build-installe
 
 “设置 → 常规 → 鱼群密度”可选择数量：淡水缸 12 / 24 / 36 条；海水缸 12 / 19 / 28 条鱼，另有 2 只虾。海水缸保留 3 条小丑鱼，其余变化来自两类群游鱼。热闹档会增加模拟和绘制开销；默认仍为标准档。切换档位重建场景，当前投食状态不保留。
 
+## 设置文件
+
+在“设置 → 设置文件”中导入或导出 JSON，或恢复默认值。导入及恢复默认只改变草稿，保存后生效，取消保留已有设置；导出包含当前界面尚未保存的调整。
+
+文件包括场景、画质、鱼群密度、互动、投食、节能和每屏场景，不携带开机启动、当前壁纸模式和暂停状态。恢复默认也保留开机启动选择。支持带格式标识和版本号的便携文件，以及旧版本原始 `settings.json`。缺少的选项采用默认值，离线屏幕设置保留；错误值、不支持的版本或超过 64 KB 的文件会被拒绝。
+
 ## 验证
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\test-policy.ps1
 node .\upstream\scenes\shared\population.test.mjs
-.\dist\DesktopEcosphere-v0.6\DesktopEcosphere.exe --smoke-test
+.\dist\DesktopEcosphere-v0.7\DesktopEcosphere.exe --smoke-test
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\verify.ps1
 ```
 

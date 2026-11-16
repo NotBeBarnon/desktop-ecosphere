@@ -163,7 +163,7 @@ namespace DesktopEcosphere {
         async Task WriteDiagnostics(string path) {
             var serializer=new System.Web.Script.Serialization.JavaScriptSerializer();
             var reports=new List<object>(); foreach(var surface in surfaces.ToArray()) if(!surface.IsDisposed) reports.Add(serializer.DeserializeObject(await surface.Diagnostics()));
-            var report=new { version="0.6.0",createdUtc=DateTime.UtcNow.ToString("o"),windows=Environment.OSVersion.VersionString,status=RuntimeStatus(),webview=web.CoreWebView2==null?null:web.CoreWebView2.Environment.BrowserVersionString,displays=Screen.AllScreens.Select(x=>new {device=x.DeviceName,primary=x.Primary,x=x.Bounds.X,y=x.Bounds.Y,width=x.Bounds.Width,height=x.Bounds.Height}).ToArray(),surfaces=reports,preview=serializer.DeserializeObject(await Script("window.habitatStats?.() || null")) };
+            var report=new { version="0.7.0",createdUtc=DateTime.UtcNow.ToString("o"),windows=Environment.OSVersion.VersionString,status=RuntimeStatus(),webview=web.CoreWebView2==null?null:web.CoreWebView2.Environment.BrowserVersionString,displays=Screen.AllScreens.Select(x=>new {device=x.DeviceName,primary=x.Primary,x=x.Bounds.X,y=x.Bounds.Y,width=x.Bounds.Width,height=x.Bounds.Height}).ToArray(),surfaces=reports,preview=serializer.DeserializeObject(await Script("window.habitatStats?.() || null")) };
             File.WriteAllText(path,serializer.Serialize(report));
         }
         Preferences LoadPreferences() {
@@ -312,7 +312,19 @@ namespace DesktopEcosphere {
         }
         async Task Smoke() {
             if(prefs.Scene=="riverscape") {
-                using(var settingsWindow=new SettingsForm(prefs,RuntimeStatus,null)) { settingsWindow.Show(); await Task.Delay(500); settingsWindow.CaptureTabs(AppDomain.CurrentDomain.BaseDirectory); settingsWindow.Close(); }
+                using(var settingsWindow=new SettingsForm(prefs,RuntimeStatus,null)) {
+                    settingsWindow.Show(); await Task.Delay(500);
+                    var imported=new Preferences { Scene="reefscape",Population="lively",Fps=60,AutoFeedMinutes=15,FeedPortions=3 };
+                    imported.ScreenScenes["offline-smoke-screen"]="reefscape";
+                    settingsWindow.ImportDraft(SettingsProfile.Export(imported)); var draft=SettingsProfile.Parse(settingsWindow.ExportDraft());
+                    if(draft.Scene!="reefscape" || draft.Population!="lively" || draft.Fps!=60 || draft.AutoFeedMinutes!=15 || draft.FeedPortions!=3 || draft.ScreenScenes["offline-smoke-screen"]!="reefscape" || prefs.Scene!="riverscape" || prefs.Population!="standard") throw new Exception("设置界面导入或草稿隔离失败");
+                    bool rejected=false; try { settingsWindow.ImportDraft("{\"Fps\":999}"); } catch(FormatException) { rejected=true; }
+                    if(!rejected || SettingsProfile.Parse(settingsWindow.ExportDraft()).Scene!="reefscape") throw new Exception("无效导入修改了设置草稿");
+                    settingsWindow.ResetDraft(); draft=SettingsProfile.Parse(settingsWindow.ExportDraft());
+                    if(draft.Scene!="riverscape" || draft.Fps!=30 || draft.Population!="standard" || draft.AutoFeedMinutes!=0 || draft.ScreenScenes.Count!=0) throw new Exception("设置界面恢复默认失败");
+                    settingsWindow.CaptureTabs(AppDomain.CurrentDomain.BaseDirectory); settingsWindow.Close();
+                    File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-settings-transfer.json"),"{\"import\":true,\"export\":true,\"reset\":true,\"draftIsolated\":true}");
+                }
             }
             for(int i=0;i<120 && !ready;i++) { await Task.Delay(1000); if(i == 10) File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-loading.json"),await Script("JSON.stringify({text:document.body.innerText,errors:window.hostErrors,scripts:[...document.scripts].map(s=>({src:s.src,type:s.type})),resources:performance.getEntriesByType('resource').map(x=>({name:x.name,duration:x.duration}))})")); }
             if(!ready) { using(var f = File.Create(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-failure.png"))) await web.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,f); throw new Exception("场景在 120 秒内未完成加载：" + await Script("JSON.stringify({text:document.body.innerText,errors:window.hostErrors,resources:performance.getEntriesByType('resource').map(x=>({name:x.name,duration:x.duration}))})")); }

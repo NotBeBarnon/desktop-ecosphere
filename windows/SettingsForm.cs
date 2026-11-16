@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.IO;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -14,6 +15,8 @@ namespace DesktopEcosphere {
         readonly TableLayoutPanel energy = Page();
         readonly TabControl tabs=new TabControl { Dock=DockStyle.Fill };
         readonly System.Windows.Forms.Timer refresh=new System.Windows.Forms.Timer();
+        Action readDraft;
+        Action<Preferences> loadDraft;
         static TableLayoutPanel Page() { return new TableLayoutPanel { Dock=DockStyle.Fill,AutoScroll=true,ColumnCount=2,Padding=new Padding(20),AutoSize=false }; }
         static ComboBox Choice(string[] items,int selected) { var c=new ComboBox { DropDownStyle=ComboBoxStyle.DropDownList,Width=220 }; c.Items.AddRange(items); c.SelectedIndex=selected; return c; }
         static void Row(TableLayoutPanel page,string text,Control control) { int row=page.RowCount++; page.RowStyles.Add(new RowStyle(SizeType.AutoSize)); page.Controls.Add(new Label { Text=text,AutoSize=true,Margin=new Padding(0,8,18,16) },0,row); page.Controls.Add(control,1,row); }
@@ -39,8 +42,10 @@ namespace DesktopEcosphere {
             Row(interaction,"说明",new Label { Text="自动投食仅在场景运行时生效。\n暂停、关屏或被遮挡期间不会累积补投。\n每份沿用场景原有投食量；手动投食后重新计时。",AutoSize=true });
             var layout=new MonitorLayout(); Row(displays,"当前屏幕布局",layout);
             var all=new CheckBox { Text="所有显示器（关闭时仅主屏）",AutoSize=true,Checked=source.AllScreens }; Row(displays,"运行范围",all);
+            var screenPicks=new Dictionary<string,ComboBox>();
             foreach(var display in Screen.AllScreens) { string device=display.DeviceName, saved; source.ScreenScenes.TryGetValue(device,out saved);
                 var pick=Choice(new[]{"跟随默认场景","淡水生态缸","珊瑚海水缸"},saved=="riverscape"?1:saved=="reefscape"?2:0);
+                screenPicks[device]=pick;
                 Row(displays,device+(display.Primary?" · 主屏":"")+"\n"+display.Bounds.Width+" × "+display.Bounds.Height,pick);
                 pick.SelectedIndexChanged+=(s,e)=>{ if(pick.SelectedIndex==0) Result.ScreenScenes.Remove(device); else Result.ScreenScenes[device]=pick.SelectedIndex==1?"riverscape":"reefscape"; };
             }
@@ -55,8 +60,24 @@ namespace DesktopEcosphere {
             FormClosed+=(s,e)=>{ refresh.Stop(); refresh.Dispose(); };
             var buttons=new FlowLayoutPanel { Dock=DockStyle.Bottom,Height=58,FlowDirection=FlowDirection.RightToLeft,Padding=new Padding(10) }; Controls.Add(buttons);
             var ok=new Button { Text="保存",AutoSize=true }; var cancel=new Button { Text="取消",DialogResult=DialogResult.Cancel,AutoSize=true }; buttons.Controls.Add(ok); buttons.Controls.Add(cancel); AcceptButton=ok; CancelButton=cancel;
-            ok.Click+=(s,e)=>{ Result.Scene=scene.SelectedIndex==0?"riverscape":"reefscape"; Result.Quality=new[]{"eco","balanced","detail"}[quality.SelectedIndex]; Result.Fps=new[]{15,30,60}[fps.SelectedIndex]; Result.AllScreens=all.Checked; Result.BatteryMode=new[]{"limit","pause","normal"}[battery.SelectedIndex]; Result.Occlusion=covered.Checked; Result.FeedPortions=portions.SelectedIndex+1; Result.AutoFeedMinutes=intervals[interval.SelectedIndex]; Result.PointerInteraction=pointer.Checked; Result.Population=new[]{"sparse","standard","lively"}[population.SelectedIndex]; Startup=startup.Checked; DialogResult=DialogResult.OK; };
+            readDraft=()=>{ Result.Scene=scene.SelectedIndex==0?"riverscape":"reefscape"; Result.Quality=new[]{"eco","balanced","detail"}[quality.SelectedIndex]; Result.Fps=new[]{15,30,60}[fps.SelectedIndex]; Result.AllScreens=all.Checked; Result.BatteryMode=new[]{"limit","pause","normal"}[battery.SelectedIndex]; Result.Occlusion=covered.Checked; Result.FeedPortions=portions.SelectedIndex+1; Result.AutoFeedMinutes=intervals[interval.SelectedIndex]; Result.PointerInteraction=pointer.Checked; Result.Population=new[]{"sparse","standard","lively"}[population.SelectedIndex]; Startup=startup.Checked; };
+            loadDraft=p=>{ scene.SelectedIndex=p.Scene=="reefscape"?1:0; quality.SelectedIndex=Array.IndexOf(new[]{"eco","balanced","detail"},p.Quality); fps.SelectedIndex=Array.IndexOf(new[]{15,30,60},p.Fps); population.SelectedIndex=Array.IndexOf(new[]{"sparse","standard","lively"},p.Population); all.Checked=p.AllScreens; battery.SelectedIndex=Array.IndexOf(new[]{"limit","pause","normal"},p.BatteryMode); covered.Checked=p.Occlusion; portions.SelectedIndex=p.FeedPortions-1; interval.SelectedIndex=Array.IndexOf(intervals,p.AutoFeedMinutes); pointer.Checked=p.PointerInteraction; Result.ScreenScenes=new Dictionary<string,string>(p.ScreenScenes); foreach(var displayPick in screenPicks) { string selected; p.ScreenScenes.TryGetValue(displayPick.Key,out selected); displayPick.Value.SelectedIndex=selected=="riverscape"?1:selected=="reefscape"?2:0; } readDraft(); };
+            ok.Click+=(s,e)=>{ readDraft(); DialogResult=DialogResult.OK; };
+            var transfer=Page(); var transferTab=new TabPage("设置文件"); transferTab.Controls.Add(transfer); tabs.TabPages.Add(transferTab);
+            var importButton=new Button { Text="导入设置…",AutoSize=true };
+            importButton.Click+=(s,e)=>{ using(var file=new OpenFileDialog { Filter="设置文件 (*.json)|*.json" }) { if(file.ShowDialog(this)!=DialogResult.OK) return; try { loadDraft(SettingsProfile.Read(file.FileName)); MessageBox.Show("设置已载入，点击保存后生效。","桌面生态缸"); } catch(Exception error) { MessageBox.Show("导入失败："+error.Message,"桌面生态缸"); } } };
+            Row(transfer,"导入",importButton);
+            var exportButton=new Button { Text="导出当前设置…",AutoSize=true };
+            exportButton.Click+=(s,e)=>{ using(var file=new SaveFileDialog { Filter="设置文件 (*.json)|*.json",FileName="desktop-ecosphere-settings.json" }) { if(file.ShowDialog(this)!=DialogResult.OK) return; try { SettingsProfile.Write(file.FileName,ExportDraft()); MessageBox.Show("设置文件已保存。","桌面生态缸"); } catch(Exception error) { MessageBox.Show("导出失败："+error.Message,"桌面生态缸"); } } };
+            Row(transfer,"导出",exportButton);
+            var defaults=new Button { Text="恢复默认设置",AutoSize=true };
+            defaults.Click+=(s,e)=>{ if(MessageBox.Show("恢复场景、互动和节能的默认值？点击保存后生效。","恢复默认",MessageBoxButtons.OKCancel)==DialogResult.OK) ResetDraft(); };
+            Row(transfer,"恢复默认",defaults);
+            Row(transfer,"说明",new Label { Text="导入和恢复默认只修改设置草稿，保存后生效。\n导出包含尚未保存的界面设置。\n开机启动和当前壁纸/暂停状态不在设置文件中。\n恢复默认保留开机启动选项；配置文件兼容旧版本。",AutoSize=true });
         }
+        internal string ExportDraft() { readDraft(); return SettingsProfile.Export(Result); }
+        internal void ImportDraft(string json) { loadDraft(SettingsProfile.Parse(json)); }
+        internal void ResetDraft() { loadDraft(new Preferences()); }
         internal void CaptureTabs(string folder) {
             for(int i=0;i<tabs.TabPages.Count;i++) { tabs.SelectedIndex=i; tabs.Update(); Update(); using(var bitmap=new Bitmap(Width,Height)) { DrawToBitmap(bitmap,new Rectangle(Point.Empty,bitmap.Size)); bitmap.Save(System.IO.Path.Combine(folder,"smoke-settings-"+i+".png")); } }
         }

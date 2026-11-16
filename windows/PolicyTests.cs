@@ -4,6 +4,7 @@ namespace DesktopEcosphere {
     static class PolicyTests {
         static void Equal(double expected,double actual,string label) { if(Math.Abs(expected-actual)>0.001) throw new Exception(label+": "+actual); Console.WriteLine("PASS "+label); }
         static void Main() {
+            SettingsProfileTests.Run();
             var serializer=new System.Runtime.Serialization.Json.DataContractJsonSerializer(typeof(Preferences));
             using(var oldData=new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes("{\"Scene\":\"reefscape\",\"Fps\":30}"))) {
                 var migrated=(Preferences)serializer.ReadObject(oldData);
