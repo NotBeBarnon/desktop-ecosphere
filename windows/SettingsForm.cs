@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
+using System.Windows.Forms;
+using Microsoft.Win32;
+
+namespace DesktopEcosphere {
+    sealed class SettingsForm : Form {
+        public readonly Preferences Result;
+        public bool Startup;
+        readonly TableLayoutPanel general = Page();
+        readonly TableLayoutPanel displays = Page();
+        readonly TableLayoutPanel energy = Page();
+        readonly TabControl tabs=new TabControl { Dock=DockStyle.Fill };
+        readonly System.Windows.Forms.Timer refresh=new System.Windows.Forms.Timer();
+        static TableLayoutPanel Page() { return new TableLayoutPanel { Dock=DockStyle.Fill,AutoScroll=true,ColumnCount=2,Padding=new Padding(20),AutoSize=false }; }
+        static ComboBox Choice(string[] items,int selected) { var c=new ComboBox { DropDownStyle=ComboBoxStyle.DropDownList,Width=220 }; c.Items.AddRange(items); c.SelectedIndex=selected; return c; }
+        static void Row(TableLayoutPanel page,string text,Control control) { int row=page.RowCount++; page.RowStyles.Add(new RowStyle(SizeType.AutoSize)); page.Controls.Add(new Label { Text=text,AutoSize=true,Margin=new Padding(0,8,18,16) },0,row); page.Controls.Add(control,1,row); }
+        public SettingsForm(Preferences source,Func<string> runtime=null,Action export=null) {
+            Result = new Preferences { Scene=source.Scene,Quality=source.Quality,Fps=source.Fps,Paused=source.Paused,Wallpaper=source.Wallpaper,AllScreens=source.AllScreens,ScreenScenes=new Dictionary<string,string>(source.ScreenScenes),BatteryMode=source.BatteryMode,Occlusion=source.Occlusion };
+            Result.FeedPortions=source.FeedPortions; Result.AutoFeedMinutes=source.AutoFeedMinutes; Result.PointerInteraction=source.PointerInteraction;
+            Text="桌面生态缸 · 设置"; ClientSize=new Size(670,520); MinimumSize=new Size(640,500); StartPosition=FormStartPosition.CenterParent;
+            Font=new Font("Microsoft YaHei UI",10); AutoScaleMode=AutoScaleMode.Dpi;
+            Controls.Add(tabs);
+            foreach(var pair in new[]{Tuple.Create("常规",general),Tuple.Create("显示器",displays),Tuple.Create("节能",energy)}) { var tab=new TabPage(pair.Item1); tab.Controls.Add(pair.Item2); tabs.TabPages.Add(tab); }
+            var scene=Choice(new[]{"淡水生态缸","珊瑚海水缸"},source.Scene=="reefscape"?1:0); Row(general,"默认场景",scene);
+            var quality=Choice(new[]{"节能","均衡","精细"},source.Quality=="eco"?0:source.Quality=="detail"?2:1); Row(general,"画质",quality);
+            var fps=Choice(new[]{"15 FPS","30 FPS","60 FPS"},source.Fps==15?0:source.Fps==60?2:1); Row(general,"帧率上限",fps);
+            var startup=new CheckBox { Text="登录 Windows 后启动",AutoSize=true,Checked=StartupEnabled() }; Row(general,"开机启动",startup);
+            Row(general,"说明",new Label { Text="画质、帧率受显卡和节能策略影响。\n设置在点击“保存”后生效。",AutoSize=true });
+            var interaction=Page(); var interactionTab=new TabPage("互动与投食"); interactionTab.Controls.Add(interaction); tabs.TabPages.Add(interactionTab);
+            var portions=Choice(new[]{"少量（1 份）","适量（2 份）","较多（3 份）"},Math.Max(0,Math.Min(2,source.FeedPortions-1))); Row(interaction,"每次投食",portions);
+            int[] intervals={0,1,5,15,30,60}; var interval=Choice(new[]{"关闭","每 1 分钟","每 5 分钟","每 15 分钟","每 30 分钟","每 60 分钟"},Math.Max(0,Array.IndexOf(intervals,source.AutoFeedMinutes))); Row(interaction,"自动投食",interval);
+            var pointer=new CheckBox { Text="鱼群响应鼠标、预览窗口点击投食",AutoSize=true,Checked=source.PointerInteraction }; Row(interaction,"鼠标互动",pointer);
+            Row(interaction,"说明",new Label { Text="自动投食仅在场景运行时生效。\n暂停、关屏或被遮挡期间不会累积补投。\n每份沿用场景原有投食量；手动投食后重新计时。",AutoSize=true });
+            var layout=new MonitorLayout(); Row(displays,"当前屏幕布局",layout);
+            var all=new CheckBox { Text="所有显示器（关闭时仅主屏）",AutoSize=true,Checked=source.AllScreens }; Row(displays,"运行范围",all);
+            foreach(var display in Screen.AllScreens) { string device=display.DeviceName, saved; source.ScreenScenes.TryGetValue(device,out saved);
+                var pick=Choice(new[]{"跟随默认场景","淡水生态缸","珊瑚海水缸"},saved=="riverscape"?1:saved=="reefscape"?2:0);
+                Row(displays,device+(display.Primary?" · 主屏":"")+"\n"+display.Bounds.Width+" × "+display.Bounds.Height,pick);
+                pick.SelectedIndexChanged+=(s,e)=>{ if(pick.SelectedIndex==0) Result.ScreenScenes.Remove(device); else Result.ScreenScenes[device]=pick.SelectedIndex==1?"riverscape":"reefscape"; };
+            }
+            var battery=Choice(new[]{"电池时最高 15 FPS","电池时暂停","沿用帧率上限"},source.BatteryMode=="pause"?1:source.BatteryMode=="normal"?2:0); Row(energy,"电池策略",battery);
+            var covered=new CheckBox { Text="窗口遮挡时自动降帧或暂停",AutoSize=true,Checked=source.Occlusion }; Row(energy,"桌面遮挡",covered);
+            Row(energy,"自动节能",new Label { Text="锁屏、休眠、显示器关闭时停止渲染。\n遮挡 ≥ 70%：最高 10 FPS；≥ 98%：暂停。\n多屏分别估算遮挡面积。",AutoSize=true });
+            var diagnostics=Page(); var diagnosticTab=new TabPage("运行状态"); diagnosticTab.Controls.Add(diagnostics); tabs.TabPages.Add(diagnosticTab);
+            var state=new Label { AutoSize=true,MaximumSize=new Size(440,0),Text=runtime==null?"尚未连接运行状态":runtime() }; Row(diagnostics,"当前状态",state);
+            var save=new Button { Text="导出诊断文件…",AutoSize=true,Enabled=export!=null }; save.Click+=(s,e)=>{ if(export!=null) export(); }; Row(diagnostics,"问题排查",save);
+            Row(diagnostics,"说明",new Label { Text="诊断包含系统版本、屏幕布局和渲染统计。\n文件仅保存在你选择的位置。",AutoSize=true });
+            refresh.Interval=1000; refresh.Tick+=(s,e)=>{ if(runtime!=null) state.Text=runtime(); }; refresh.Start();
+            FormClosed+=(s,e)=>{ refresh.Stop(); refresh.Dispose(); };
+            var buttons=new FlowLayoutPanel { Dock=DockStyle.Bottom,Height=58,FlowDirection=FlowDirection.RightToLeft,Padding=new Padding(10) }; Controls.Add(buttons);
+            var ok=new Button { Text="保存",AutoSize=true }; var cancel=new Button { Text="取消",DialogResult=DialogResult.Cancel,AutoSize=true }; buttons.Controls.Add(ok); buttons.Controls.Add(cancel); AcceptButton=ok; CancelButton=cancel;
+            ok.Click+=(s,e)=>{ Result.Scene=scene.SelectedIndex==0?"riverscape":"reefscape"; Result.Quality=new[]{"eco","balanced","detail"}[quality.SelectedIndex]; Result.Fps=new[]{15,30,60}[fps.SelectedIndex]; Result.AllScreens=all.Checked; Result.BatteryMode=new[]{"limit","pause","normal"}[battery.SelectedIndex]; Result.Occlusion=covered.Checked; Startup=startup.Checked; DialogResult=DialogResult.OK; };
+            ok.Click+=(s,e)=>{ Result.FeedPortions=portions.SelectedIndex+1; Result.AutoFeedMinutes=intervals[interval.SelectedIndex]; Result.PointerInteraction=pointer.Checked; };
+        }
+        internal void CaptureTabs(string folder) {
+            for(int i=0;i<tabs.TabPages.Count;i++) { tabs.SelectedIndex=i; tabs.Update(); Update(); using(var bitmap=new Bitmap(Width,Height)) { DrawToBitmap(bitmap,new Rectangle(Point.Empty,bitmap.Size)); bitmap.Save(System.IO.Path.Combine(folder,"smoke-settings-"+i+".png")); } }
+        }
+        internal static bool StartupEnabled() { using(var key=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")) return key!=null && key.GetValue("DesktopHabitatsWindows")!=null; }
+        internal static void SetStartup(bool enabled) { using(var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")) { if(enabled) key.SetValue("DesktopHabitatsWindows","\""+Application.ExecutablePath+"\""); else key.DeleteValue("DesktopHabitatsWindows",false); } }
+    }
+    sealed class MonitorLayout : Control {
+        public MonitorLayout() { Size=new Size(340,150); DoubleBuffered=true; }
+        protected override void OnPaint(PaintEventArgs e) {
+            base.OnPaint(e); var screens=Screen.AllScreens; Rectangle union=screens.Select(x=>x.Bounds).Aggregate(Rectangle.Union);
+            float scale=Math.Min((Width-20f)/union.Width,(Height-20f)/union.Height);
+            for(int i=0;i<screens.Length;i++) { var b=screens[i].Bounds; var r=new RectangleF(10+(b.Left-union.Left)*scale,10+(b.Top-union.Top)*scale,b.Width*scale-3,b.Height*scale-3);
+                e.Graphics.FillRectangle(screens[i].Primary?Brushes.Teal:Brushes.SlateGray,r); e.Graphics.DrawString((i+1)+(screens[i].Primary?" 主屏":""),Font,Brushes.White,r); }
+        }
+    }
+}

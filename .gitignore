@@ -1,0 +1,7 @@
+windows/packages/
+dist/
+.vs/
+*.user
+*.suo
+*.log
+upstream/.git/
