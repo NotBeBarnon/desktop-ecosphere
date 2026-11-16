@@ -1,5 +1,6 @@
 import { qualityName, frameRate } from '../../shared/render-policy.js';
 import { riverCount, populationName } from '../../shared/population.js';
+import { lightingValue } from '../../shared/lighting.js';
 import { installControls, reportSceneError, preferredQuality } from '../../shared/controls.js';
 import { createComposite } from './composite.js';
 import * as THREE from "three";
@@ -31,6 +32,8 @@ let onBattery = false;
 let settings = renderSettings({ profile, wallpaper, pixelRatio: devicePixelRatio });
 let requestedRate = wallpaper ? 0 : 60;
 let loop = null, applyPower = null, updateControls = () => {};
+let lighting = 1, applyLighting = () => {};
+window.habitatLighting = value => { const next=lightingValue(value); if(next===lighting)return; lighting=next; applyLighting(); };
 window.habitatPause = (value) => { paused = Boolean(value); loop?.setPaused(paused); updateControls(); };
 window.habitatRate = (fps) => {
   requestedRate = Number.isFinite(fps) && fps > 0 ? Math.min(120, fps) : 0;
@@ -73,6 +76,8 @@ async function start() {
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.17;
+  applyLighting=()=>{renderer.toneMappingExposure=1.17*lighting;loop?.invalidate();};
+  renderer.toneMappingExposure=1.17*lighting;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
@@ -339,6 +344,7 @@ async function start() {
   });
   updateControls();
   window.habitatStats = () => ({
+    lighting, exposure:renderer.toneMappingExposure,
     population: populationName(query.get('population')), fishCount: fish.getTelemetry().count,
     profile, onBattery, resolution: settings.resolution,
     framebuffer: [target.width, target.height], samples: target.samples,

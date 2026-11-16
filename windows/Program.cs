@@ -29,7 +29,9 @@ namespace DesktopEcosphere {
         [DataMember] public int AutoFeedMinutes;
         [DataMember] public bool PointerInteraction=true;
         [DataMember] public string Population="standard";
-        [OnDeserializing] void Defaults(StreamingContext context) { BatteryMode="limit"; Occlusion=true; FeedPortions=1; PointerInteraction=true; Population="standard"; }
+        [DataMember] public int Brightness=100;
+        [DataMember] public bool DayNight;
+        [OnDeserializing] void Defaults(StreamingContext context) { BatteryMode="limit"; Occlusion=true; FeedPortions=1; PointerInteraction=true; Population="standard"; Brightness=100; }
     }
     static class Program {
         internal static readonly string Data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DesktopHabitatsWindows");
@@ -73,6 +75,7 @@ namespace DesktopEcosphere {
         readonly SceneLoadWatch loadWatch=new SceneLoadWatch();
         bool navigating;
         bool? appliedInteraction;
+        double? appliedLighting;
         readonly string settings = Path.Combine(Program.Data,"settings.json");
         public Habitat() {
             prefs = Program.Smoke ? new Preferences() : LoadPreferences();
@@ -100,6 +103,7 @@ namespace DesktopEcosphere {
                     var value=dialog.Result;
                     prefs.FeedPortions=value.FeedPortions; prefs.AutoFeedMinutes=value.AutoFeedMinutes; prefs.PointerInteraction=value.PointerInteraction; feedClock.Reset();
                     prefs.Population=value.Population;
+                    prefs.Brightness=value.Brightness; prefs.DayNight=value.DayNight;
                     prefs.Scene=value.Scene; prefs.Quality=value.Quality; prefs.Fps=value.Fps; prefs.AllScreens=value.AllScreens; prefs.ScreenScenes=value.ScreenScenes; prefs.BatteryMode=value.BatteryMode; prefs.Occlusion=value.Occlusion;
                     scene.SelectedIndex=prefs.Scene=="reefscape"?1:0; quality.SelectedIndex=prefs.Quality=="eco"?0:prefs.Quality=="detail"?2:1; fps.SelectedIndex=prefs.Fps==15?0:prefs.Fps==60?2:1;
                     Save(); Navigate(); if(wallpaper) RebuildSurfaces();
@@ -163,7 +167,7 @@ namespace DesktopEcosphere {
         async Task WriteDiagnostics(string path) {
             var serializer=new System.Web.Script.Serialization.JavaScriptSerializer();
             var reports=new List<object>(); foreach(var surface in surfaces.ToArray()) if(!surface.IsDisposed) reports.Add(serializer.DeserializeObject(await surface.Diagnostics()));
-            var report=new { version="0.7.0",createdUtc=DateTime.UtcNow.ToString("o"),windows=Environment.OSVersion.VersionString,status=RuntimeStatus(),webview=web.CoreWebView2==null?null:web.CoreWebView2.Environment.BrowserVersionString,displays=Screen.AllScreens.Select(x=>new {device=x.DeviceName,primary=x.Primary,x=x.Bounds.X,y=x.Bounds.Y,width=x.Bounds.Width,height=x.Bounds.Height}).ToArray(),surfaces=reports,preview=serializer.DeserializeObject(await Script("window.habitatStats?.() || null")) };
+            var report=new { version="0.8.0",createdUtc=DateTime.UtcNow.ToString("o"),windows=Environment.OSVersion.VersionString,status=RuntimeStatus(),webview=web.CoreWebView2==null?null:web.CoreWebView2.Environment.BrowserVersionString,displays=Screen.AllScreens.Select(x=>new {device=x.DeviceName,primary=x.Primary,x=x.Bounds.X,y=x.Bounds.Y,width=x.Bounds.Width,height=x.Bounds.Height}).ToArray(),surfaces=reports,preview=serializer.DeserializeObject(await Script("window.habitatStats?.() || null")) };
             File.WriteAllText(path,serializer.Serialize(report));
         }
         Preferences LoadPreferences() {
@@ -174,6 +178,7 @@ namespace DesktopEcosphere {
                 if(p.BatteryMode!="limit" && p.BatteryMode!="pause" && p.BatteryMode!="normal") p.BatteryMode="limit";
                 p.FeedPortions=Math.Max(1,Math.Min(3,p.FeedPortions));
                 if(p.Population!="sparse" && p.Population!="lively" && p.Population!="standard") p.Population="standard";
+                p.Brightness=Math.Max(25,Math.Min(150,p.Brightness));
                 if(!new[]{0,1,5,15,30,60}.Contains(p.AutoFeedMinutes)) p.AutoFeedMinutes=0;
                 if(p.ScreenScenes == null) p.ScreenScenes = new Dictionary<string,string>();
                 foreach(var device in p.ScreenScenes.Keys.ToArray()) if(p.ScreenScenes[device] != "riverscape" && p.ScreenScenes[device] != "reefscape") p.ScreenScenes.Remove(device);
@@ -193,7 +198,7 @@ namespace DesktopEcosphere {
                 web.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 web.CoreWebView2.Settings.AreDevToolsEnabled = Program.Smoke;
                 await web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(Interaction.Setup);
-                web.CoreWebView2.NavigationCompleted+=(s,e)=>{ navigating=false; ready=false; appliedInteraction=null; appliedRate=-1; };
+                web.CoreWebView2.NavigationCompleted+=(s,e)=>{ navigating=false; ready=false; appliedLighting=null; appliedInteraction=null; appliedRate=-1; };
                 await web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.hostErrors=[];window.addEventListener('error',e=>hostErrors.push(e.message+' '+e.filename));window.addEventListener('unhandledrejection',e=>hostErrors.push(String(e.reason)));");
                 web.CoreWebView2.NavigationStarting += (s,e) => { if(!e.Uri.StartsWith("https://habitat.local/",StringComparison.OrdinalIgnoreCase)) e.Cancel = true; };
                 web.CoreWebView2.NewWindowRequested += (s,e) => e.Handled = true;
@@ -202,7 +207,7 @@ namespace DesktopEcosphere {
                 if(Program.Smoke) await Smoke(); else if(prefs.Wallpaper) Attach();
             } catch(Exception e) { Program.Log(e); status.Text = "初始化失败：" + e.Message; if(Program.Smoke) { Environment.ExitCode = 1; File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-error.txt"),e.ToString()); Close(); } else MessageBox.Show(e.Message + "\n请确认 Microsoft Edge WebView2 Runtime 已安装。","启动失败"); }
         }
-        void Navigate(bool retry=false) { if(web.CoreWebView2 == null) return; navigating=true; ready=false; appliedRate=-1; appliedInteraction=null; lastPointer=""; feedClock.Reset(); loadWatch.Start(retry); web.CoreWebView2.Navigate("https://habitat.local/scenes/" + prefs.Scene + "/wallpaper.html?quality=" + prefs.Quality + "&population=" + prefs.Population); status.Text="正在加载场景…"; }
+        void Navigate(bool retry=false) { if(web.CoreWebView2 == null) return; navigating=true; ready=false; appliedRate=-1; appliedInteraction=null; appliedLighting=null; lastPointer=""; feedClock.Reset(); loadWatch.Start(retry); web.CoreWebView2.Navigate("https://habitat.local/scenes/" + prefs.Scene + "/wallpaper.html?quality=" + prefs.Quality + "&population=" + prefs.Population); status.Text="正在加载场景…"; }
         async Task<string> Script(string script) { if(closing || web.CoreWebView2 == null) return "null"; try { return await web.CoreWebView2.ExecuteScriptAsync(script); } catch(Exception e) { Program.Log(e); return "null"; } }
         int Rate() {
             return EnergyPolicy.Rate(prefs.Fps,wallpaper || prefs.Paused || locked || suspended || displayOff || WindowState==FormWindowState.Minimized,Program.OnBattery,prefs.BatteryMode,0);
@@ -226,6 +231,8 @@ namespace DesktopEcosphere {
                 if(wallpaper && ++tick % 30 == 0 && (surfaces.Count == 0 || surfaces.Any(x => x.IsDisposed || !x.Attached))) RebuildSurfaces();
                 if(!ready) { ready=!navigating && await Script("Boolean(window.habitatStats)")=="true"; if(!ready) { bool failed=await Script("Boolean(document.querySelector('#error')&&!document.querySelector('#error').hidden)")=="true"; if(loadWatch.Retry(failed)) Navigate(true); status.Text=failed?"场景加载失败，可点击重新加载（自动重试最多两次）":"正在加载场景…"; feedClock.Reset(); return; } }
                 int rate = Rate(); bool battery = Program.OnBattery;
+                double light=LightingPolicy.Multiplier(prefs.Brightness,prefs.DayNight,DateTime.Now);
+                if((rate>0 || !appliedLighting.HasValue) && appliedLighting!=light) { await Script(LightingPolicy.Script(light)); appliedLighting=light; }
                 if(rate != appliedRate || battery != appliedBattery) {
                     await Script("window.habitatPause(" + (prefs.Paused ? "true" : "false") + ");window.habitatPower(" + (battery ? "true" : "false") + ");window.habitatRate(" + rate + ");");
                     appliedRate = rate; appliedBattery = battery;
@@ -310,17 +317,33 @@ namespace DesktopEcosphere {
             for(int i=0;i<240 && !ready;i++) await Task.Delay(500);
             if(!ready) throw new Exception("恢复标准鱼群密度失败"); timer.Stop();
         }
+        async Task<double> CaptureLighting(string path) {
+            using(var file=File.Create(path)) await web.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,file);
+            using(var bitmap=new Bitmap(path)) { double total=0; int count=0; for(int y=0;y<bitmap.Height;y+=8) for(int x=0;x<bitmap.Width;x+=8) { var pixel=bitmap.GetPixel(x,y); total+=pixel.R+pixel.G+pixel.B; count+=3; } return total/count; }
+        }
+        async Task VerifyLighting() {
+            await Script("window.habitatRate(0);window.habitatLighting(1.25)"); await Task.Delay(500);
+            double bright=await CaptureLighting(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-light-bright-"+prefs.Scene+".png"));
+            await Script("window.habitatLighting(0.25)"); await Task.Delay(500);
+            double dark=await CaptureLighting(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-light-dark-"+prefs.Scene+".png"));
+            bool stopped=await Script("(habitatStats().loop?.fps ?? habitatStats().effectiveFPS)===0")=="true";
+            if(!(bright>dark*1.15) || !stopped) throw new Exception("灯光调整没有改变实际图像，或唤醒了暂停动画");
+            File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-lighting-"+prefs.Scene+".json"),new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new {bright,dark,stopped}));
+            appliedLighting=null; appliedRate=-1; await Tick();
+        }
         async Task Smoke() {
             if(prefs.Scene=="riverscape") {
                 using(var settingsWindow=new SettingsForm(prefs,RuntimeStatus,null)) {
                     settingsWindow.Show(); await Task.Delay(500);
-                    var imported=new Preferences { Scene="reefscape",Population="lively",Fps=60,AutoFeedMinutes=15,FeedPortions=3 };
+                    var imported=new Preferences { Scene="reefscape",Population="lively",Fps=60,AutoFeedMinutes=15,FeedPortions=3,Brightness=75,DayNight=true };
                     imported.ScreenScenes["offline-smoke-screen"]="reefscape";
                     settingsWindow.ImportDraft(SettingsProfile.Export(imported)); var draft=SettingsProfile.Parse(settingsWindow.ExportDraft());
+                    if(draft.Brightness!=75 || !draft.DayNight || prefs.Brightness!=100 || prefs.DayNight) throw new Exception("灯光设置导入或隔离失败");
                     if(draft.Scene!="reefscape" || draft.Population!="lively" || draft.Fps!=60 || draft.AutoFeedMinutes!=15 || draft.FeedPortions!=3 || draft.ScreenScenes["offline-smoke-screen"]!="reefscape" || prefs.Scene!="riverscape" || prefs.Population!="standard") throw new Exception("设置界面导入或草稿隔离失败");
                     bool rejected=false; try { settingsWindow.ImportDraft("{\"Fps\":999}"); } catch(FormatException) { rejected=true; }
                     if(!rejected || SettingsProfile.Parse(settingsWindow.ExportDraft()).Scene!="reefscape") throw new Exception("无效导入修改了设置草稿");
                     settingsWindow.ResetDraft(); draft=SettingsProfile.Parse(settingsWindow.ExportDraft());
+                    if(draft.Brightness!=100 || draft.DayNight) throw new Exception("灯光默认值恢复失败");
                     if(draft.Scene!="riverscape" || draft.Fps!=30 || draft.Population!="standard" || draft.AutoFeedMinutes!=0 || draft.ScreenScenes.Count!=0) throw new Exception("设置界面恢复默认失败");
                     settingsWindow.CaptureTabs(AppDomain.CurrentDomain.BaseDirectory); settingsWindow.Close();
                     File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-settings-transfer.json"),"{\"import\":true,\"export\":true,\"reset\":true,\"draftIsolated\":true}");
@@ -340,6 +363,7 @@ namespace DesktopEcosphere {
             string target = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-" + prefs.Scene);
             File.WriteAllText(target + ".json","{\"before\":" + before + ",\"stopped\":" + stopped + ",\"resumed\":" + resumed + "}");
             await VerifyPowerIntegration();
+            await VerifyLighting();
             await Script("window.__interactionMoves=0;document.querySelector('#scene').addEventListener('pointermove',()=>window.__interactionMoves++);");
             await Script(Interaction.PointerEnabled(false));
             await Script("document.querySelector('#scene').dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:20,clientY:20}));");
@@ -363,6 +387,11 @@ namespace DesktopEcosphere {
                     Attach();
                     for(int i=0;i<120 && surfaces.Any(x => !x.Ready);i++) await Task.Delay(500);
                     bool attached = wallpaper && surfaces.Count == Screen.AllScreens.Length && surfaces.All(x => x.Attached && x.Ready && x.BoundsValid);
+                    prefs.Brightness=65;
+                    bool lightingReload=true; foreach(var surface in surfaces) if(!await surface.CheckLightingReload()) lightingReload=false;
+                    prefs.Brightness=100;
+                    File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-wallpaper-lighting.json"),"{\"reloadRetained\":"+lightingReload.ToString().ToLowerInvariant()+"}");
+                    if(!lightingReload) throw new Exception("壁纸重载后未保留灯光设置");
                     var snapshots = new List<string>();
                     foreach(var surface in surfaces) snapshots.Add(await surface.Diagnostics());
                     await WriteDiagnostics(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-diagnostics.json"));

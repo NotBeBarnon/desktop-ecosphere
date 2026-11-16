@@ -5,10 +5,17 @@ namespace DesktopEcosphere {
         static void Equal(double expected,double actual,string label) { if(Math.Abs(expected-actual)>0.001) throw new Exception(label+": "+actual); Console.WriteLine("PASS "+label); }
         static void Main() {
             SettingsProfileTests.Run();
+            Equal(1,LightingPolicy.Multiplier(100,false,new DateTime(2026,1,1,0,0,0)),"手动亮度不随时间变化");
+            Equal(0.35,LightingPolicy.Multiplier(100,true,new DateTime(2026,1,1,0,0,0)),"夜间亮度下限");
+            Equal(1,LightingPolicy.Multiplier(100,true,new DateTime(2026,1,1,12,0,0)),"白天保持亮度");
+            Equal(0.675,LightingPolicy.Multiplier(100,true,new DateTime(2026,1,1,7,0,0)),"黎明过渡");
+            Equal(0.675,LightingPolicy.Multiplier(100,true,new DateTime(2026,1,1,19,0,0)),"黄昏过渡");
+            Equal(0.175,LightingPolicy.Multiplier(50,true,new DateTime(2026,1,1,23,0,0)),"手动亮度与昼夜叠加");
+            foreach(int hour in new[]{6,8,18,20}) { var boundary=new DateTime(2026,1,1,hour,0,0); Equal(LightingPolicy.Multiplier(100,true,boundary.AddSeconds(-1)),LightingPolicy.Multiplier(100,true,boundary.AddSeconds(1)),"昼夜边界连续 "+hour); }
             var serializer=new System.Runtime.Serialization.Json.DataContractJsonSerializer(typeof(Preferences));
             using(var oldData=new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes("{\"Scene\":\"reefscape\",\"Fps\":30}"))) {
                 var migrated=(Preferences)serializer.ReadObject(oldData);
-                if(migrated.Population!="standard") throw new Exception("旧配置未回退到标准密度");
+                if(migrated.Population!="standard" || migrated.Brightness!=100 || migrated.DayNight) throw new Exception("旧配置默认值迁移失败");
                 migrated.Population="lively";
                 using(var saved=new System.IO.MemoryStream()) { serializer.WriteObject(saved,migrated); saved.Position=0; if(((Preferences)serializer.ReadObject(saved)).Population!="lively") throw new Exception("鱼群密度保存失败"); }
                 Console.WriteLine("PASS 旧配置密度迁移、新设置序列化");

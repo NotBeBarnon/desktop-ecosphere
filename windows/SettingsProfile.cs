@@ -8,9 +8,10 @@ using System.Web.Script.Serialization;
 namespace DesktopEcosphere {
     static class SettingsProfile {
         const int Limit=65536;
-        static readonly string[] Names={"Scene","Quality","Fps","AllScreens","ScreenScenes","BatteryMode","Occlusion","FeedPortions","AutoFeedMinutes","PointerInteraction","Population"};
+        static readonly string[] Names={"Scene","Quality","Fps","AllScreens","ScreenScenes","BatteryMode","Occlusion","FeedPortions","AutoFeedMinutes","PointerInteraction","Population","Brightness","DayNight"};
         internal static string Export(Preferences p) {
             var data=new Dictionary<string,object> { {"Scene",p.Scene},{"Quality",p.Quality},{"Fps",p.Fps},{"AllScreens",p.AllScreens},{"ScreenScenes",p.ScreenScenes},{"BatteryMode",p.BatteryMode},{"Occlusion",p.Occlusion},{"FeedPortions",p.FeedPortions},{"AutoFeedMinutes",p.AutoFeedMinutes},{"PointerInteraction",p.PointerInteraction},{"Population",p.Population} };
+            data["Brightness"]=p.Brightness; data["DayNight"]=p.DayNight;
             return new JavaScriptSerializer().Serialize(new {format="desktop-ecosphere.settings",schemaVersion=1,settings=data});
         }
         internal static Preferences Read(string path) { if(new FileInfo(path).Length>Limit) throw new FormatException("设置文件不能超过 64 KB。"); return Parse(File.ReadAllText(path)); }
@@ -27,6 +28,8 @@ namespace DesktopEcosphere {
             }
             if(!Names.Any(data.ContainsKey)) throw new FormatException("文件中没有可导入的设置。");
             var p=new Preferences(); object v;
+            if(data.TryGetValue("Brightness",out v)) { if(!(v is int) || (int)v<25 || (int)v>150) throw new FormatException("亮度必须为 25–150 的整数。"); p.Brightness=(int)v; }
+            if(data.TryGetValue("DayNight",out v)) p.DayNight=Boolean(v,"昼夜模式");
             if(data.TryGetValue("Scene",out v)) p.Scene=EnumValue(v,"场景","riverscape","reefscape");
             if(data.TryGetValue("Quality",out v)) p.Quality=EnumValue(v,"画质","eco","balanced","detail");
             if(data.TryGetValue("Population",out v)) p.Population=EnumValue(v,"鱼群密度","sparse","standard","lively");

@@ -2,7 +2,7 @@
 
 为 Windows 桌面添加实时淡水生态缸或珊瑚海水缸。基于 C#、WinForms、WebView2 和 Three.js/WebGL2，离线运行。
 
-当前版本：**v0.7.0** · 仓库：[NotBeBarnon/desktop-ecosphere](https://github.com/NotBeBarnon/desktop-ecosphere)
+当前版本：**v0.8.0** · 仓库：[NotBeBarnon/desktop-ecosphere](https://github.com/NotBeBarnon/desktop-ecosphere)
 
 ![场景预览](upstream/docs/images/riverscape-wide.png)
 
@@ -16,6 +16,7 @@
 - 场景异常最多自动重试两次，支持手动重新加载。
 - 实时状态、本地 JSON 诊断、壁纸窗口失效恢复。
 - 设置导入、导出和恢复默认，支持迁移已有配置。
+- 灯光亮度与可选的本地时间昼夜渐变。
 - 当前用户安装、快捷方式和卸载入口。
 
 ## 运行与编译
@@ -29,7 +30,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build-installer.ps1
 ```
 
-产物为 `dist/DesktopEcosphere-v0.7/DesktopEcosphere.exe`、`dist/DesktopEcosphere-Windows-x64-v0.7.zip` 和 `dist/DesktopEcosphere-Setup-v0.7.exe`。
+产物为 `dist/DesktopEcosphere-v0.8/DesktopEcosphere.exe`、`dist/DesktopEcosphere-Windows-x64-v0.8.zip` 和 `dist/DesktopEcosphere-Setup-v0.8.exe`。
 
 安装位置为 `%LOCALAPPDATA%/Programs/DesktopEcosphere`，无需管理员权限。安装包不包含 WebView2 Runtime，尚未代码签名。升级前先从托盘退出旧版。
 
@@ -43,6 +44,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build-installe
 
 “设置 → 常规 → 鱼群密度”可选择数量：淡水缸 12 / 24 / 36 条；海水缸 12 / 19 / 28 条鱼，另有 2 只虾。海水缸保留 3 条小丑鱼，其余变化来自两类群游鱼。热闹档会增加模拟和绘制开销；默认仍为标准档。切换档位重建场景，当前投食状态不保留。
 
+## 灯光
+
+“设置 → 灯光”支持 25%–150% 亮度，默认 100% 保持原场景曝光。启用昼夜变化后，按 Windows 本地时间在 6–8 点渐亮、18–20 点渐暗，夜间保持设定亮度的 35%。夜间不完全熄灯，不模拟鱼类睡眠或改变生物行为。
+
+停止渲染时不持续刷新灯光，恢复后同步当前时间。手动保存新亮度会重新加载场景；暂停状态下可绘制一帧新亮度，动画仍保持暂停。实际亮度还受色调映射、显示器和场景材质影响，百分比不代表物理照度。
+
 ## 设置文件
 
 在“设置 → 设置文件”中导入或导出 JSON，或恢复默认值。导入及恢复默认只改变草稿，保存后生效，取消保留已有设置；导出包含当前界面尚未保存的调整。
@@ -54,7 +61,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build-installe
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\test-policy.ps1
 node .\upstream\scenes\shared\population.test.mjs
-.\dist\DesktopEcosphere-v0.7\DesktopEcosphere.exe --smoke-test
+node .\upstream\scenes\shared\lighting.test.mjs
+.\dist\DesktopEcosphere-v0.8\DesktopEcosphere.exe --smoke-test
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\verify.ps1
 ```
 
@@ -68,7 +76,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\verify.ps1
 - 遮挡按窗口矩形联合面积估算，覆盖 ≥70% 时最高 10 FPS，≥98% 时暂停；透明窗口可能产生估算偏差。
 - 帧率是上限，实际表现受显卡、画质和节能状态影响。
 - WorkerW 不是微软公开承诺稳定的壁纸接口，不同系统构建可能有差异。
-- 尚无代码签名、自动更新、单独鱼种的数量调整、昼夜系统或养成存档。
+- 尚无代码签名、自动更新、单独鱼种的数量调整、生物作息系统或养成存档。
 
 ## 版本提交
 

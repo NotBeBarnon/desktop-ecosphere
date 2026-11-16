@@ -28,6 +28,7 @@ namespace DesktopEcosphere {
         readonly SceneLoadWatch loadWatch=new SceneLoadWatch();
         bool navigating;
         bool? appliedInteraction;
+        double? appliedLighting;
         public bool Ready { get; private set; }
         public bool Attached { get { return !IsDisposed && IsHandleCreated && Native.IsWindow(parent) && Native.GetParent(Handle) == parent; } }
         public bool BoundsValid { get { Native.RECT r; var b=screen.Bounds; return IsHandleCreated && Native.GetWindowRect(Handle,out r) && Math.Abs(r.Left-b.Left)<=2 && Math.Abs(r.Top-b.Top)<=2 && Math.Abs((r.Right-r.Left)-b.Width)<=2 && Math.Abs((r.Bottom-r.Top)-b.Height)<=2; } }
@@ -61,7 +62,7 @@ namespace DesktopEcosphere {
                 web.CoreWebView2.NavigationStarting += (s,e) => { if(!e.Uri.StartsWith("https://habitat.local/",StringComparison.OrdinalIgnoreCase)) e.Cancel = true; };
                 web.CoreWebView2.NewWindowRequested += (s,e) => e.Handled = true;
                 web.CoreWebView2.ProcessFailed += (s,e) => { Ready = false; if(!closing) web.CoreWebView2.Reload(); };
-                web.CoreWebView2.NavigationCompleted += (s,e) => { navigating=false; Ready=false; appliedRate=-1; pointer=""; appliedInteraction=null; };
+                web.CoreWebView2.NavigationCompleted += (s,e) => { navigating=false; Ready=false; appliedRate=-1; pointer=""; appliedInteraction=null; appliedLighting=null; };
                 RefreshScene(); timer.Start();
             } catch(Exception e) { Program.Log(e); if(!closing) Close(); }
         }
@@ -70,6 +71,7 @@ namespace DesktopEcosphere {
             string scene; if(!prefs.ScreenScenes.TryGetValue(screen.DeviceName,out scene)) scene = prefs.Scene;
             Ready = false; appliedRate = -1; pointer = "";
             navigating=true; appliedInteraction=null; feedClock.Reset(); loadWatch.Start(retry);
+            appliedLighting=null;
             web.CoreWebView2.Navigate("https://habitat.local/scenes/" + scene + "/wallpaper.html?quality=" + prefs.Quality + "&population=" + prefs.Population);
         }
         async Task<string> Script(string script) {
@@ -82,6 +84,8 @@ namespace DesktopEcosphere {
             try {
                 if(!Ready) { Ready=!navigating && await Script("Boolean(window.habitatStats)")=="true"; if(!Ready) { bool error=await Script("Boolean(document.querySelector('#error')&&!document.querySelector('#error').hidden)")=="true"; if(loadWatch.Retry(error)) RefreshScene(true); feedClock.Reset(); return; } }
                 int wanted = rate(screen.Bounds); bool battery = Program.OnBattery;
+                double light=LightingPolicy.Multiplier(prefs.Brightness,prefs.DayNight,DateTime.Now);
+                if((wanted>0 || !appliedLighting.HasValue) && appliedLighting!=light) { await Script(LightingPolicy.Script(light)); appliedLighting=light; }
                 if(wanted != appliedRate || battery != appliedBattery) {
                     await Script("window.habitatPause(false);window.habitatPower(" + (battery ? "true" : "false") + ");window.habitatRate(" + wanted + ")");
                     appliedRate = wanted; appliedBattery = battery;
@@ -106,6 +110,14 @@ namespace DesktopEcosphere {
         }
         public async Task<bool> CheckScene(string expected) {
             return await Script("Boolean(location.pathname.includes('/" + expected + "/') && window.habitatStats)") == "true";
+        }
+        internal async Task<bool> CheckLightingReload() {
+            Ready=false; navigating=true; web.CoreWebView2.Reload();
+            for(int i=0;i<120 && !Ready && !closing;i++) await Task.Delay(500);
+            if(!Ready) return false;
+            await Task.Delay(300);
+            double expected=LightingPolicy.Multiplier(prefs.Brightness,prefs.DayNight,DateTime.Now);
+            return await Script("Math.abs(habitatStats().lighting-"+expected.ToString("0.###",CultureInfo.InvariantCulture)+")<0.001")=="true";
         }
         protected override void OnFormClosing(FormClosingEventArgs e) {
             closing = true; timer.Stop(); timer.Dispose();

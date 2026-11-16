@@ -9,12 +9,16 @@ namespace DesktopEcosphere {
         internal static void Run() {
             var original=new Preferences { Scene="reefscape",Quality="detail",Fps=60,Population="lively",AllScreens=true,FeedPortions=3,AutoFeedMinutes=15,PointerInteraction=false,BatteryMode="pause",Occlusion=false,Wallpaper=true,Paused=true };
             original.ScreenScenes["offline-monitor"]="riverscape";
+            original.Brightness=75; original.DayNight=true;
             string exported=SettingsProfile.Export(original); var copy=SettingsProfile.Parse(exported);
+            Check(copy.Brightness==75 && copy.DayNight,"灯光设置导入导出");
             Check(copy.Scene==original.Scene && copy.Quality==original.Quality && copy.Fps==60 && copy.Population=="lively" && copy.AllScreens && copy.FeedPortions==3 && copy.AutoFeedMinutes==15 && !copy.PointerInteraction && copy.BatteryMode=="pause" && !copy.Occlusion && copy.ScreenScenes["offline-monitor"]=="riverscape","全部便携设置往返、保留离线显示器");
             var document=(System.Collections.Generic.Dictionary<string,object>)new JavaScriptSerializer().DeserializeObject(exported);
             var values=(System.Collections.Generic.Dictionary<string,object>)document["settings"];
             Check(!values.ContainsKey("Paused") && !values.ContainsKey("Wallpaper") && !values.ContainsKey("Startup") && !copy.Paused && !copy.Wallpaper,"不导出运行模式和开机启动");
             var legacy=SettingsProfile.Parse("{\"Scene\":\"reefscape\",\"ScreenScenes\":[{\"Key\":\"old-screen\",\"Value\":\"reefscape\"}],\"Paused\":true,\"Wallpaper\":true}");
+            Check(legacy.Brightness==100 && !legacy.DayNight,"旧版设置文件灯光缺省值");
+            Reject("{\"Brightness\":24}"); Reject("{\"Brightness\":151}"); Reject("{\"Brightness\":\"100\"}"); Reject("{\"DayNight\":1}");
             Check(legacy.ScreenScenes["old-screen"]=="reefscape" && legacy.Population=="standard" && legacy.Fps==30 && !legacy.Paused && !legacy.Wallpaper,"兼容旧配置、缺省值和运行状态隔离");
             foreach(var invalid in new[]{"{}","[]","null","broken","{\"Fps\":1000}","{\"PointerInteraction\":\"false\"}","{\"Scene\":\"unknown\"}","{\"FeedPortions\":0}","{\"Population\":null}","{\"ScreenScenes\":{\"x\":\"invalid\"}}","{\"format\":\"desktop-ecosphere.settings\",\"schemaVersion\":2,\"settings\":{\"Fps\":30}}"}) Reject(invalid);
             bool oversized=false; try { SettingsProfile.Parse(new string('x',65537)); } catch(FormatException) { oversized=true; } Check(oversized,"拒绝超长文件");

@@ -1,4 +1,5 @@
 import { QUALITY_PRESETS as presets, qualityName, frameRate, framebufferSize, renderScale } from '../../shared/render-policy.js';
+import { lightingValue } from '../../shared/lighting.js';
 import { installControls, reportSceneError, preferredQuality } from '../../shared/controls.js';
 import { createComposite } from './composite.js';
 import * as THREE from 'three';
@@ -21,6 +22,8 @@ let quality=preferredQuality(params);
 let hostRate=isHost?0:60,onBattery=false,contextLost=false,disposed=false;
 let paused=capture||(!isHost&&matchMedia('(prefers-reduced-motion: reduce)').matches);
 let changeRate=()=>{},changePower=()=>{},feed=()=>{};
+let lighting=1,applyLighting=()=>{};
+window.habitatLighting=value=>{const next=lightingValue(value);if(next===lighting)return;lighting=next;applyLighting();};
 // Installed before WebGL startup so host rate 0 cannot be lost during initialization.
 window.habitatRate=fps=>{if(!Number.isFinite(fps))return;const next=Math.max(0,Math.min(60,fps));if(next===hostRate)return;hostRate=next;changeRate();};
 window.habitatFeed=(portions=1)=>feed(portions);
@@ -31,8 +34,11 @@ window.habitatPower=battery=>{const next=Boolean(battery);if(next===onBattery)re
 
 
 async function start(){
+  let loop=null;
   const renderer=new THREE.WebGLRenderer({canvas,antialias:false,alpha:false,powerPreference:'low-power',preserveDrawingBuffer:false});
   renderer.setPixelRatio(1);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;
+  renderer.toneMappingExposure=1.08*lighting;
+  applyLighting=()=>{renderer.toneMappingExposure=1.08*lighting;loop?.invalidate();};
   renderer.shadowMap.enabled=true;renderer.shadowMap.needsUpdate=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.info.autoReset=false;
   const scene=new THREE.Scene();scene.background=new THREE.Color('#04101d');
   // Reef LEDs: a warm-white key from overhead, so the tops of rock, coral and fish catch
@@ -97,7 +103,7 @@ async function start(){
     fishSchool.update();
     shrimp.update();particles.update(dt);
   }
-  let loop=null,accumulator=0,frames=0,zeroSize=false;
+  let accumulator=0,frames=0,zeroSize=false;
   let cpuEMA=0,slowSamples=0,autoScale=1,ratio=1;
   const running=()=>!disposed&&!paused&&!document.hidden&&!contextLost&&!zeroSize&&hostRate>0;
   const fps=()=>frameRate(quality,hostRate,onBattery);
@@ -197,7 +203,7 @@ async function start(){
   loop=createFrameLoop(renderFrame,{fps:fps(),paused,hidden:document.hidden||contextLost||zeroSize});
   restart();
   window.reef={
-    ready:true,diagnostics:()=>({...simulation.diagnostics(),frames,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,
+    ready:true,diagnostics:()=>({...simulation.diagnostics(),lighting,exposure:renderer.toneMappingExposure,frames,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,
       pixels:[canvas.width,canvas.height],quality,effectiveFPS:running()?fps():0,renderScale:ratio,cpuFrameEMA:cpuEMA,scheduled:loop.state.pending,paused,hostRate,hidden:document.hidden,contextLost,tentacles:anemone.tentacles.count,webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL2',renderer:renderer.getContext().getParameter(renderer.getContext().RENDERER)}),
     setView(name){if(!views[name])throw new RangeError('Unknown reef camera');applyView(name);resize();},
     pause(value=true){paused=Boolean(value);restart();},
