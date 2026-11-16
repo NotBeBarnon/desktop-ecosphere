@@ -72,7 +72,7 @@ namespace DesktopEcosphere {
             Ready = false; appliedRate = -1; pointer = "";
             navigating=true; appliedInteraction=null; feedClock.Reset(); loadWatch.Start(retry);
             appliedLighting=null;
-            web.CoreWebView2.Navigate("https://habitat.local/scenes/" + scene + "/wallpaper.html?quality=" + prefs.Quality + "&population=" + prefs.Population);
+            web.CoreWebView2.Navigate("https://habitat.local/scenes/" + scene + "/wallpaper.html?quality=" + prefs.Quality + PopulationSettings.Query(prefs));
         }
         async Task<string> Script(string script) {
             if(closing || web.CoreWebView2 == null) return "null";
@@ -110,6 +110,9 @@ namespace DesktopEcosphere {
         }
         public async Task<bool> CheckScene(string expected) {
             return await Script("Boolean(location.pathname.includes('/" + expected + "/') && window.habitatStats)") == "true";
+        }
+        internal async Task<bool> CheckCustomPopulation() {
+            return await Script("(()=>{const s=habitatStats();return s.fishCount===17 || (s.population.chromis===6 && s.population.anthias===8 && s.population.clownfish===3 && s.population.shrimp===2)})()")=="true";
         }
         internal async Task<bool> CheckLightingReload() {
             Ready=false; navigating=true; web.CoreWebView2.Reload();

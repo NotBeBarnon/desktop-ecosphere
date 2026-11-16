@@ -95,7 +95,7 @@ async function start(){
   // then fail the depth test without sampling the triplanar texture layers.
   const rockDepthMaterial=new THREE.MeshBasicMaterial({colorWrite:false});
   rockPrepass.add(new THREE.Mesh(rockSurface.geometry,rockDepthMaterial));
-  const simulation=new ReefSimulation(36719,{population:params.get('population')});
+  const simulation=new ReefSimulation(36719,{population:params.get('population'),chromis:params.get('chromisFish'),anthias:params.get('anthiasFish')});
   const fishSchool=createFishSchool(scene,simulation);
   const shrimp=createShrimp(scene,simulation),particles=createParticles(scene,simulation,shadow);
   function sync(dt){

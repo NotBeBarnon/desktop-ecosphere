@@ -6,6 +6,12 @@ namespace DesktopEcosphere {
         static void Main() {
             UpdateCheckerTests.Run();
             SettingsProfileTests.Run();
+            var populationOptions=new Preferences { RiverFish=48 };
+            if(PopulationSettings.Query(populationOptions).Contains("riverFish")) throw new Exception("预设模式意外使用自定义数量");
+            populationOptions.CustomPopulation=true; populationOptions.RiverFish=17; populationOptions.ChromisFish=6; populationOptions.AnthiasFish=8;
+            string populationQuery=PopulationSettings.Query(populationOptions);
+            if(!populationQuery.Contains("riverFish=17") || !populationQuery.Contains("chromisFish=6") || !populationQuery.Contains("anthiasFish=8")) throw new Exception("自定义数量没有传递给场景");
+            Console.WriteLine("PASS 预设与自定义数量参数隔离");
             Equal(1,LightingPolicy.Multiplier(100,false,new DateTime(2026,1,1,0,0,0)),"手动亮度不随时间变化");
             Equal(0.35,LightingPolicy.Multiplier(100,true,new DateTime(2026,1,1,0,0,0)),"夜间亮度下限");
             Equal(1,LightingPolicy.Multiplier(100,true,new DateTime(2026,1,1,12,0,0)),"白天保持亮度");
@@ -16,7 +22,7 @@ namespace DesktopEcosphere {
             var serializer=new System.Runtime.Serialization.Json.DataContractJsonSerializer(typeof(Preferences));
             using(var oldData=new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes("{\"Scene\":\"reefscape\",\"Fps\":30}"))) {
                 var migrated=(Preferences)serializer.ReadObject(oldData);
-                if(migrated.Population!="standard" || migrated.Brightness!=100 || migrated.DayNight) throw new Exception("旧配置默认值迁移失败");
+                if(migrated.Population!="standard" || migrated.Brightness!=100 || migrated.DayNight || migrated.CustomPopulation || migrated.RiverFish!=24 || migrated.ChromisFish!=9 || migrated.AnthiasFish!=7) throw new Exception("旧配置默认值迁移失败");
                 migrated.Population="lively";
                 using(var saved=new System.IO.MemoryStream()) { serializer.WriteObject(saved,migrated); saved.Position=0; if(((Preferences)serializer.ReadObject(saved)).Population!="lively") throw new Exception("鱼群密度保存失败"); }
                 Console.WriteLine("PASS 旧配置密度迁移、新设置序列化");

@@ -166,7 +166,7 @@ async function start() {
   });
   const food = createFood(scene, { thickets: plants.thickets });
   const fish = createFishSchool(scene, {
-    count: riverCount(query.get('population')),
+    count: riverCount(query.get('population'),query.get('riverFish')),
     obstacles,
     landmarks,
     thickets: plants.thickets,

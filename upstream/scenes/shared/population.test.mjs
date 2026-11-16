@@ -27,3 +27,18 @@ for(const invalid of [undefined,null,'','unknown','999']) {
   assert.deepEqual(reefCounts(invalid),reefCounts('standard'));
 }
 console.log('PASS invalid profiles fall back to standard');
+for(const [river,chromis,anthias] of [[1,2,2],[17,6,8],[48,18,14]]) {
+  const school=createFishSchool(new THREE.Scene(),{count:riverCount('standard',String(river))});
+  assert.equal(school.fish.length,river);
+  for(let i=0;i<600;i++) school.update(FIXED_STEP,i*FIXED_STEP,null);
+  assert.ok(school.fish.every(f=>[f.position.x,f.position.y,f.position.z].every(Number.isFinite))); school.dispose();
+  const simulation=new ReefSimulation(36719,{chromis:String(chromis),anthias:String(anthias)});
+  assert.equal(simulation.fish.length,chromis+anthias+3);
+  for(let i=0;i<600;i++) simulation.step(FIXED_STEP);
+  assert.equal(simulation.diagnostics().finite,true);
+  assert.equal(simulation.shrimp.length,2);
+}
+assert.equal(riverCount('standard','999'),24);
+assert.equal(riverCount('standard',99),48);
+assert.deepEqual(reefCounts('standard',{chromis:null,anthias:'oops'}),reefCounts('standard'));
+console.log('PASS custom populations: minimum, mixed and maximum counts');

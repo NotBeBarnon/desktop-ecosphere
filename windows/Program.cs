@@ -31,7 +31,11 @@ namespace DesktopEcosphere {
         [DataMember] public string Population="standard";
         [DataMember] public int Brightness=100;
         [DataMember] public bool DayNight;
-        [OnDeserializing] void Defaults(StreamingContext context) { BatteryMode="limit"; Occlusion=true; FeedPortions=1; PointerInteraction=true; Population="standard"; Brightness=100; }
+        [DataMember] public bool CustomPopulation;
+        [DataMember] public int RiverFish=24;
+        [DataMember] public int ChromisFish=9;
+        [DataMember] public int AnthiasFish=7;
+        [OnDeserializing] void Defaults(StreamingContext context) { BatteryMode="limit"; Occlusion=true; FeedPortions=1; PointerInteraction=true; Population="standard"; Brightness=100; RiverFish=24; ChromisFish=9; AnthiasFish=7; }
     }
     static class Program {
         internal static readonly string Data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DesktopHabitatsWindows");
@@ -103,6 +107,7 @@ namespace DesktopEcosphere {
                     var value=dialog.Result;
                     prefs.FeedPortions=value.FeedPortions; prefs.AutoFeedMinutes=value.AutoFeedMinutes; prefs.PointerInteraction=value.PointerInteraction; feedClock.Reset();
                     prefs.Population=value.Population;
+                    prefs.CustomPopulation=value.CustomPopulation; prefs.RiverFish=value.RiverFish; prefs.ChromisFish=value.ChromisFish; prefs.AnthiasFish=value.AnthiasFish;
                     prefs.Brightness=value.Brightness; prefs.DayNight=value.DayNight;
                     prefs.Scene=value.Scene; prefs.Quality=value.Quality; prefs.Fps=value.Fps; prefs.AllScreens=value.AllScreens; prefs.ScreenScenes=value.ScreenScenes; prefs.BatteryMode=value.BatteryMode; prefs.Occlusion=value.Occlusion;
                     scene.SelectedIndex=prefs.Scene=="reefscape"?1:0; quality.SelectedIndex=prefs.Quality=="eco"?0:prefs.Quality=="detail"?2:1; fps.SelectedIndex=prefs.Fps==15?0:prefs.Fps==60?2:1;
@@ -179,6 +184,7 @@ namespace DesktopEcosphere {
                 p.FeedPortions=Math.Max(1,Math.Min(3,p.FeedPortions));
                 if(p.Population!="sparse" && p.Population!="lively" && p.Population!="standard") p.Population="standard";
                 p.Brightness=Math.Max(25,Math.Min(150,p.Brightness));
+                p.RiverFish=Math.Max(1,Math.Min(48,p.RiverFish)); p.ChromisFish=Math.Max(2,Math.Min(18,p.ChromisFish)); p.AnthiasFish=Math.Max(2,Math.Min(14,p.AnthiasFish));
                 if(!new[]{0,1,5,15,30,60}.Contains(p.AutoFeedMinutes)) p.AutoFeedMinutes=0;
                 if(p.ScreenScenes == null) p.ScreenScenes = new Dictionary<string,string>();
                 foreach(var device in p.ScreenScenes.Keys.ToArray()) if(p.ScreenScenes[device] != "riverscape" && p.ScreenScenes[device] != "reefscape") p.ScreenScenes.Remove(device);
@@ -207,7 +213,7 @@ namespace DesktopEcosphere {
                 if(Program.Smoke) await Smoke(); else if(prefs.Wallpaper) Attach();
             } catch(Exception e) { Program.Log(e); status.Text = "初始化失败：" + e.Message; if(Program.Smoke) { Environment.ExitCode = 1; File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-error.txt"),e.ToString()); Close(); } else MessageBox.Show(e.Message + "\n请确认 Microsoft Edge WebView2 Runtime 已安装。","启动失败"); }
         }
-        void Navigate(bool retry=false) { if(web.CoreWebView2 == null) return; navigating=true; ready=false; appliedRate=-1; appliedInteraction=null; appliedLighting=null; lastPointer=""; feedClock.Reset(); loadWatch.Start(retry); web.CoreWebView2.Navigate("https://habitat.local/scenes/" + prefs.Scene + "/wallpaper.html?quality=" + prefs.Quality + "&population=" + prefs.Population); status.Text="正在加载场景…"; }
+        void Navigate(bool retry=false) { if(web.CoreWebView2 == null) return; navigating=true; ready=false; appliedRate=-1; appliedInteraction=null; appliedLighting=null; lastPointer=""; feedClock.Reset(); loadWatch.Start(retry); web.CoreWebView2.Navigate("https://habitat.local/scenes/" + prefs.Scene + "/wallpaper.html?quality=" + prefs.Quality + PopulationSettings.Query(prefs)); status.Text="正在加载场景…"; }
         async Task<string> Script(string script) { if(closing || web.CoreWebView2 == null) return "null"; try { return await web.CoreWebView2.ExecuteScriptAsync(script); } catch(Exception e) { Program.Log(e); return "null"; } }
         int Rate() {
             return EnergyPolicy.Rate(prefs.Fps,wallpaper || prefs.Paused || locked || suspended || displayOff || WindowState==FormWindowState.Minimized,Program.OnBattery,prefs.BatteryMode,0);
@@ -283,6 +289,8 @@ namespace DesktopEcosphere {
             try { Marshal.StructureToPtr(DisplayState,data,false); Marshal.WriteInt32(data,16,4); Marshal.WriteInt32(data,20,value); var message=Message.Create(Handle,0x218,new IntPtr(0x8013),data); WndProc(ref message); } finally { Marshal.FreeHGlobal(data); }
         }
         async Task VerifyPowerIntegration() {
+            for(int i=0;i<200 && busy;i++) await Task.Delay(50);
+            if(busy) throw new Exception("宿主调度未在测试前完成");
             string original=prefs.BatteryMode;
             try {
                 SimulateDisplayState(0); await Tick();
@@ -294,7 +302,7 @@ namespace DesktopEcosphere {
                 Program.TestBattery=false; prefs.BatteryMode=original; await Tick();
                 bool resumed=await Script("(habitatStats().loop?.fps ?? habitatStats().effectiveFPS)>0")=="true";
                 File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-power-"+prefs.Scene+".json"),new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new {displayOff=off,batteryPaused,limited,resumed,simulated=true}));
-                if(!off || !batteryPaused || !limited || !resumed) throw new Exception("电源消息到场景渲染的集成验证失败");
+                if(!off || !batteryPaused || !limited || !resumed) throw new Exception("电源消息到场景渲染的集成验证失败："+RuntimeStatus()+"; window="+WindowState+"; visible="+Visible+"; "+await Script("habitatStats()"));
             } finally { Program.TestBattery=null; prefs.BatteryMode=original; displayOff=false; }
             await Tick();
         }
@@ -319,6 +327,22 @@ namespace DesktopEcosphere {
             for(int i=0;i<240 && !ready;i++) await Task.Delay(500);
             if(!ready) throw new Exception("恢复标准鱼群密度失败"); timer.Stop();
         }
+        async Task VerifyCustomPopulation() {
+            prefs.CustomPopulation=true; prefs.RiverFish=17; prefs.ChromisFish=6; prefs.AnthiasFish=8;
+            Navigate(); timer.Start();
+            for(int i=0;i<240 && !ready;i++) await Task.Delay(500);
+            if(!ready) throw new Exception("自定义鱼群加载超时");
+            string valid="false";
+            for(int i=0;i<75 && valid!="true";i++) {
+                await Task.Delay(200);
+                valid=await Script("(()=>{const s=habitatStats();return Boolean((s.fishCount===17 || (s.population.chromis===6 && s.population.anthias===8 && s.population.clownfish===3 && s.population.shrimp===2)) && (s.renderedFrames||s.frames)>0 && !s.shaderErrors && s.finite!==false)})()");
+            }
+            timer.Stop(); if(valid!="true") throw new Exception("自定义鱼群实际数量或渲染状态不正确");
+            File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-custom-population-"+prefs.Scene+".json"),"{\"counts\":true,\"rendered\":true}");
+            prefs.CustomPopulation=false; Navigate(); timer.Start();
+            for(int i=0;i<240 && !ready;i++) await Task.Delay(500);
+            if(!ready) throw new Exception("切回密度模式失败"); timer.Stop();
+        }
         async Task<double> CaptureLighting(string path) {
             using(var file=File.Create(path)) await web.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,file);
             using(var bitmap=new Bitmap(path)) { double total=0; int count=0; for(int y=0;y<bitmap.Height;y+=8) for(int x=0;x<bitmap.Width;x+=8) { var pixel=bitmap.GetPixel(x,y); total+=pixel.R+pixel.G+pixel.B; count+=3; } return total/count; }
@@ -337,15 +361,17 @@ namespace DesktopEcosphere {
             if(prefs.Scene=="riverscape") {
                 using(var settingsWindow=new SettingsForm(prefs,RuntimeStatus,null,token=>Task.FromResult(UpdateChecker.Tags("[{\"name\":\"v0.9.0\"}]")))) {
                     settingsWindow.Show(); await Task.Delay(500);
-                    var imported=new Preferences { Scene="reefscape",Population="lively",Fps=60,AutoFeedMinutes=15,FeedPortions=3,Brightness=75,DayNight=true };
+                    var imported=new Preferences { Scene="reefscape",Population="lively",Fps=60,AutoFeedMinutes=15,FeedPortions=3,Brightness=75,DayNight=true,CustomPopulation=true,RiverFish=17,ChromisFish=6,AnthiasFish=8 };
                     imported.ScreenScenes["offline-smoke-screen"]="reefscape";
                     settingsWindow.ImportDraft(SettingsProfile.Export(imported)); var draft=SettingsProfile.Parse(settingsWindow.ExportDraft());
                     if(draft.Brightness!=75 || !draft.DayNight || prefs.Brightness!=100 || prefs.DayNight) throw new Exception("灯光设置导入或隔离失败");
+                    if(!draft.CustomPopulation || draft.RiverFish!=17 || draft.ChromisFish!=6 || draft.AnthiasFish!=8 || prefs.CustomPopulation) throw new Exception("自定义生物数量导入或隔离失败");
                     if(draft.Scene!="reefscape" || draft.Population!="lively" || draft.Fps!=60 || draft.AutoFeedMinutes!=15 || draft.FeedPortions!=3 || draft.ScreenScenes["offline-smoke-screen"]!="reefscape" || prefs.Scene!="riverscape" || prefs.Population!="standard") throw new Exception("设置界面导入或草稿隔离失败");
                     bool rejected=false; try { settingsWindow.ImportDraft("{\"Fps\":999}"); } catch(FormatException) { rejected=true; }
                     if(!rejected || SettingsProfile.Parse(settingsWindow.ExportDraft()).Scene!="reefscape") throw new Exception("无效导入修改了设置草稿");
                     settingsWindow.ResetDraft(); draft=SettingsProfile.Parse(settingsWindow.ExportDraft());
                     if(draft.Brightness!=100 || draft.DayNight) throw new Exception("灯光默认值恢复失败");
+                    if(draft.CustomPopulation || draft.RiverFish!=24 || draft.ChromisFish!=9 || draft.AnthiasFish!=7) throw new Exception("生物数量恢复默认失败");
                     if(draft.Scene!="riverscape" || draft.Fps!=30 || draft.Population!="standard" || draft.AutoFeedMinutes!=0 || draft.ScreenScenes.Count!=0) throw new Exception("设置界面恢复默认失败");
                     if(!settingsWindow.CheckUpdateForTest()) throw new Exception("更新检查界面未显示标签提示");
                     settingsWindow.CaptureTabs(AppDomain.CurrentDomain.BaseDirectory); settingsWindow.Close();
@@ -382,14 +408,19 @@ namespace DesktopEcosphere {
             File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-interaction-"+prefs.Scene+".json"),new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new {blocked,enabled,portions}));
             using(var f = File.Create(target + ".png")) await web.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,f);
             await VerifyPopulationProfiles();
+            await VerifyCustomPopulation();
             if(prefs.Scene == "riverscape") { prefs.Scene = "reefscape"; Navigate(); timer.Start(); await Smoke(); } else {
                 var host = Native.FindWallpaperHost();
                 if(host != IntPtr.Zero) {
                     prefs.AllScreens = true;
+                    prefs.CustomPopulation=true; prefs.RiverFish=17; prefs.ChromisFish=6; prefs.AnthiasFish=8;
                     prefs.ScreenScenes[Screen.PrimaryScreen.DeviceName] = "riverscape";
                     Attach();
                     for(int i=0;i<120 && surfaces.Any(x => !x.Ready);i++) await Task.Delay(500);
                     bool attached = wallpaper && surfaces.Count == Screen.AllScreens.Length && surfaces.All(x => x.Attached && x.Ready && x.BoundsValid);
+                    bool customWallpaper=true; foreach(var surface in surfaces) if(!await surface.CheckCustomPopulation()) customWallpaper=false;
+                    File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"smoke-wallpaper-population.json"),"{\"customCounts\":"+customWallpaper.ToString().ToLowerInvariant()+"}");
+                    if(!customWallpaper) throw new Exception("壁纸窗口未应用自定义生物数量");
                     prefs.Brightness=65;
                     bool lightingReload=true; foreach(var surface in surfaces) if(!await surface.CheckLightingReload()) lightingReload=false;
                     prefs.Brightness=100;

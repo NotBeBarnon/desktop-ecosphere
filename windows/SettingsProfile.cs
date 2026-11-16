@@ -8,10 +8,11 @@ using System.Web.Script.Serialization;
 namespace DesktopEcosphere {
     static class SettingsProfile {
         const int Limit=65536;
-        static readonly string[] Names={"Scene","Quality","Fps","AllScreens","ScreenScenes","BatteryMode","Occlusion","FeedPortions","AutoFeedMinutes","PointerInteraction","Population","Brightness","DayNight"};
+        static readonly string[] Names={"Scene","Quality","Fps","AllScreens","ScreenScenes","BatteryMode","Occlusion","FeedPortions","AutoFeedMinutes","PointerInteraction","Population","Brightness","DayNight","CustomPopulation","RiverFish","ChromisFish","AnthiasFish"};
         internal static string Export(Preferences p) {
             var data=new Dictionary<string,object> { {"Scene",p.Scene},{"Quality",p.Quality},{"Fps",p.Fps},{"AllScreens",p.AllScreens},{"ScreenScenes",p.ScreenScenes},{"BatteryMode",p.BatteryMode},{"Occlusion",p.Occlusion},{"FeedPortions",p.FeedPortions},{"AutoFeedMinutes",p.AutoFeedMinutes},{"PointerInteraction",p.PointerInteraction},{"Population",p.Population} };
             data["Brightness"]=p.Brightness; data["DayNight"]=p.DayNight;
+            data["CustomPopulation"]=p.CustomPopulation; data["RiverFish"]=p.RiverFish; data["ChromisFish"]=p.ChromisFish; data["AnthiasFish"]=p.AnthiasFish;
             return new JavaScriptSerializer().Serialize(new {format="desktop-ecosphere.settings",schemaVersion=1,settings=data});
         }
         internal static Preferences Read(string path) { if(new FileInfo(path).Length>Limit) throw new FormatException("设置文件不能超过 64 KB。"); return Parse(File.ReadAllText(path)); }
@@ -28,6 +29,10 @@ namespace DesktopEcosphere {
             }
             if(!Names.Any(data.ContainsKey)) throw new FormatException("文件中没有可导入的设置。");
             var p=new Preferences(); object v;
+            if(data.TryGetValue("CustomPopulation",out v)) p.CustomPopulation=Boolean(v,"自定义鱼群数量");
+            if(data.TryGetValue("RiverFish",out v)) p.RiverFish=Count(v,"淡水鱼数量",1,48);
+            if(data.TryGetValue("ChromisFish",out v)) p.ChromisFish=Count(v,"Chromis 数量",2,18);
+            if(data.TryGetValue("AnthiasFish",out v)) p.AnthiasFish=Count(v,"Anthias 数量",2,14);
             if(data.TryGetValue("Brightness",out v)) { if(!(v is int) || (int)v<25 || (int)v>150) throw new FormatException("亮度必须为 25–150 的整数。"); p.Brightness=(int)v; }
             if(data.TryGetValue("DayNight",out v)) p.DayNight=Boolean(v,"昼夜模式");
             if(data.TryGetValue("Scene",out v)) p.Scene=EnumValue(v,"场景","riverscape","reefscape");
@@ -54,6 +59,7 @@ namespace DesktopEcosphere {
         }
         static string EnumValue(object value,string name,params string[] allowed) { if(!(value is string) || !allowed.Contains((string)value)) throw new FormatException(name+"值无效。"); return (string)value; }
         static int Number(object value,string name,params int[] allowed) { if(!(value is int) || !allowed.Contains((int)value)) throw new FormatException(name+"值无效。"); return (int)value; }
+        static int Count(object value,string name,int min,int max) { if(!(value is int) || (int)value<min || (int)value>max) throw new FormatException(name+"值无效。"); return (int)value; }
         static bool Boolean(object value,string name) { if(!(value is bool)) throw new FormatException(name+"必须是布尔值。"); return (bool)value; }
         internal static void Write(string path,string contents) {
             Parse(contents);

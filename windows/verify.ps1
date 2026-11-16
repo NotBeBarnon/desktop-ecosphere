@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$output = Join-Path (Split-Path $PSScriptRoot) 'dist\DesktopEcosphere-v0.10'
+$output = Join-Path (Split-Path $PSScriptRoot) 'dist\DesktopEcosphere-v0.11'
 $transfer=Get-Content "$output\smoke-settings-transfer.json" -Raw | ConvertFrom-Json
 if(!$transfer.import -or !$transfer.export -or !$transfer.reset -or !$transfer.draftIsolated) { throw '设置导入导出、恢复默认或草稿隔离失败' }
 Write-Host 'PASS 设置界面导入导出、恢复默认、草稿隔离'
@@ -14,6 +14,9 @@ foreach ($scene in @('riverscape','reefscape')) {
         if ($report.stopped.food -le 0) { throw "$scene 投食未生效" }
     }
     Write-Host "PASS $scene 渲染、暂停、恢复"
+    $custom=Get-Content "$output\smoke-custom-population-$scene.json" -Raw | ConvertFrom-Json
+    if(!$custom.counts -or !$custom.rendered) { throw "$scene 自定义鱼群数量或渲染失败" }
+    Write-Host "PASS $scene 自定义鱼种数量和切换"
     $light=Get-Content "$output\smoke-lighting-$scene.json" -Raw | ConvertFrom-Json
     if($light.bright -le $light.dark*1.15 -or !$light.stopped) { throw "$scene 灯光图像或暂停测试失败" }
     Write-Host "PASS $scene 灯光实际图像、保持暂停"
@@ -33,6 +36,9 @@ if ($desktop.skipped) { Write-Warning '当前会话无可用 WorkerW，桌面挂
 elseif (!$desktop.attached -or !$desktop.detached -or !$desktop.independentScene -or !$desktop.recovered) { throw '桌面挂载、独立场景、恢复或还原失败' }
 else { Write-Host "PASS 桌面挂载、独立场景、失效窗口恢复、返回预览（$($desktop.screenCount) 个显示器）" }
 if(!$desktop.skipped) {
+    $wallpaperPopulation=Get-Content "$output\smoke-wallpaper-population.json" -Raw | ConvertFrom-Json
+    if(!$wallpaperPopulation.customCounts) { throw '壁纸自定义数量不正确' }
+    Write-Host 'PASS 壁纸窗口自定义生物数量'
     $wallpaperLighting=Get-Content "$output\smoke-wallpaper-lighting.json" -Raw | ConvertFrom-Json
     if(!$wallpaperLighting.reloadRetained) { throw '壁纸重载灯光丢失' }
     Write-Host 'PASS 壁纸重载后灯光恢复'

@@ -116,8 +116,8 @@ export function seatShrimp(x,z,yaw){
 }
 
 export class ReefSimulation {
-  constructor(seed=36719,{population='standard'}={}) {
-    this.population=reefCounts(population);
+  constructor(seed=36719,{population='standard',chromis,anthias}={}) {
+    this.population=reefCounts(population,{chromis,anthias});
     this.random=randomGenerator(seed);this.time=0;this.fish=[];this.food=Array.from({length:32},()=>({active:false,position:V(),velocity:V(),age:0,size:0}));
     this.lastFeed=-10;this.consumed=0;this.steps=0;
     this._flow=V();this._delta=V();this._desired=V();this._force=V();this._sep=V();this._cohesion=V();this._align=V();this._relative=V();this._heading=V();this.navigation=reefNavigation();
