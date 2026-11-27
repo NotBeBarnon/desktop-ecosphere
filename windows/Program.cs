@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.IO;
 using System.Globalization;
@@ -16,6 +16,7 @@ using Microsoft.Web.WebView2.WinForms;
 
 namespace DesktopEcosphere {
     [DataContract] public class Preferences {
+        [DataMember] public string Aquascape = "river";
         [DataMember] public string Scene = "riverscape";
         [DataMember] public string Quality = "balanced";
         [DataMember] public int Fps = 30;
@@ -109,7 +110,7 @@ namespace DesktopEcosphere {
                     prefs.Population=value.Population;
                     prefs.CustomPopulation=value.CustomPopulation; prefs.RiverFish=value.RiverFish; prefs.ChromisFish=value.ChromisFish; prefs.AnthiasFish=value.AnthiasFish;
                     prefs.Brightness=value.Brightness; prefs.DayNight=value.DayNight;
-                    prefs.Scene=value.Scene; prefs.Quality=value.Quality; prefs.Fps=value.Fps; prefs.AllScreens=value.AllScreens; prefs.ScreenScenes=value.ScreenScenes; prefs.BatteryMode=value.BatteryMode; prefs.Occlusion=value.Occlusion;
+                    prefs.Aquascape=value.Aquascape; prefs.Scene=value.Scene; prefs.Quality=value.Quality; prefs.Fps=value.Fps; prefs.AllScreens=value.AllScreens; prefs.ScreenScenes=value.ScreenScenes; prefs.BatteryMode=value.BatteryMode; prefs.Occlusion=value.Occlusion;
                     scene.SelectedIndex=prefs.Scene=="reefscape"?1:0; quality.SelectedIndex=prefs.Quality=="eco"?0:prefs.Quality=="detail"?2:1; fps.SelectedIndex=prefs.Fps==15?0:prefs.Fps==60?2:1;
                     Save(); Navigate(); if(wallpaper) RebuildSurfaces();
                 }
@@ -177,6 +178,7 @@ namespace DesktopEcosphere {
         }
         Preferences LoadPreferences() {
             try { using(var f = File.OpenRead(settings)) { var p = (Preferences)new DataContractJsonSerializer(typeof(Preferences)).ReadObject(f);
+                if(p.Aquascape!="garden" && p.Aquascape!="valley") p.Aquascape="river";
                 if(p.Scene != "riverscape" && p.Scene != "reefscape") p.Scene = "riverscape";
                 if(p.Quality != "eco" && p.Quality != "balanced" && p.Quality != "detail") p.Quality = "balanced";
                 if(p.Fps != 15 && p.Fps != 30 && p.Fps != 60) p.Fps = 30;

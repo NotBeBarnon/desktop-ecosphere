@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 namespace DesktopEcosphere {
     static class PolicyTests {
@@ -6,6 +6,9 @@ namespace DesktopEcosphere {
         static void Main() {
             UpdateCheckerTests.Run();
             SettingsProfileTests.Run();
+            foreach(var layout in new[]{"river","garden","valley"}) { var option=new Preferences { Aquascape=layout }; if(!PopulationSettings.Query(option).Contains("layout="+layout+"&")) throw new Exception("造景参数没有传递："+layout); }
+            if(!PopulationSettings.Query(new Preferences { Aquascape="unknown" }).Contains("layout=river&")) throw new Exception("未知造景没有回退");
+            Console.WriteLine("PASS 三套造景传参与未知值回退");
             var populationOptions=new Preferences { RiverFish=48 };
             if(PopulationSettings.Query(populationOptions).Contains("riverFish")) throw new Exception("预设模式意外使用自定义数量");
             populationOptions.CustomPopulation=true; populationOptions.RiverFish=17; populationOptions.ChromisFish=6; populationOptions.AnthiasFish=8;

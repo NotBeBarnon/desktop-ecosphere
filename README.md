@@ -2,9 +2,13 @@
 
 为 Windows 桌面添加实时淡水生态缸或珊瑚海水缸。基于 C#、WinForms、WebView2 和 Three.js/WebGL2，离线运行。
 
-当前版本：**v0.12.0** · 仓库：[NotBeBarnon/desktop-ecosphere](https://github.com/NotBeBarnon/desktop-ecosphere)
+当前版本：**v0.13.0** · 仓库：[NotBeBarnon/desktop-ecosphere](https://github.com/NotBeBarnon/desktop-ecosphere)
 
 ![场景预览](upstream/docs/images/riverscape-wide.png)
+
+## 淡水造景
+
+设置 → 常规 → 淡水造景：沉木溪流、红绿水草花园、青龙石山谷。造景选择对所有淡水窗口生效，海水场景保持原样；支持保存、导入与导出。新增造景参考用户实拍的红绿草丛、低矮前景和山石沙地布局，使用程序几何重建，不直接贴照片。现阶段沿用原有鱼种，没有新增照片中的高身鱼模型。
 
 ## 功能
 
@@ -34,7 +38,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\build-installer.ps1
 ```
 
-产物为 `dist/DesktopEcosphere-v0.12/DesktopEcosphere.exe`、`dist/DesktopEcosphere-Windows-x64-v0.12.zip` 和 `dist/DesktopEcosphere-Setup-v0.12.exe`。
+产物为 `dist/DesktopEcosphere-v0.13/DesktopEcosphere.exe`、`dist/DesktopEcosphere-Windows-x64-v0.13.zip` 和 `dist/DesktopEcosphere-Setup-v0.13.exe`。
 
 安装位置为 `%LOCALAPPDATA%/Programs/DesktopEcosphere`，无需管理员权限。安装包不包含 WebView2 Runtime，尚未代码签名。升级前先从托盘退出旧版。
 
@@ -82,13 +86,13 @@ node .\upstream\scenes\shared\population.test.mjs
 node .\upstream\scenes\shared\lighting.test.mjs
 node .\upstream\scenes\reefscape\tests\turn-flex.mjs
 node .\upstream\scenes\shared\motion.test.mjs
-.\dist\DesktopEcosphere-v0.12\DesktopEcosphere.exe --smoke-test
+.\dist\DesktopEcosphere-v0.13\DesktopEcosphere.exe --smoke-test
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\verify.ps1
 ```
 
 烟雾测试临时打开场景、设置和壁纸窗口，完成后还原并退出。输出诊断与截图，不保存用户设置或开启自启动。电源集成测试模拟本程序收到的消息，不实际关闭显示器。
 
-v0.12.0 的烟雾测试还会尝试录制 8 秒海水鱼群近景 `motion-preview-reefscape.webm`，只录制应用内生态缸画布。需要测试窗口保持可见；不支持 MediaRecorder 的环境会记录预览错误文件，场景功能仍独立验证。近景用于观察动作，默认壁纸镜头不变。
+v0.13.0 的烟雾测试还会尝试录制 8 秒海水鱼群近景 `motion-preview-reefscape.webm`，只录制应用内生态缸画布。需要测试窗口保持可见；不支持 MediaRecorder 的环境会记录预览错误文件，场景功能仍独立验证。近景用于观察动作，默认壁纸镜头不变。
 
 离线策略测试包括更新响应、版本比较、标签回退、取消及限流；UI 测试注入固定响应，不会隐式联网。可选运行 `windows/test-updates.ps1` 查询真实 GitHub API；此步骤依赖网络及未认证 API 配额，本次环境实际返回了限流提示。
 

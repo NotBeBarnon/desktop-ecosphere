@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -8,10 +8,10 @@ using System.Web.Script.Serialization;
 namespace DesktopEcosphere {
     static class SettingsProfile {
         const int Limit=65536;
-        static readonly string[] Names={"Scene","Quality","Fps","AllScreens","ScreenScenes","BatteryMode","Occlusion","FeedPortions","AutoFeedMinutes","PointerInteraction","Population","Brightness","DayNight","CustomPopulation","RiverFish","ChromisFish","AnthiasFish"};
+        static readonly string[] Names={"Aquascape","Scene","Quality","Fps","AllScreens","ScreenScenes","BatteryMode","Occlusion","FeedPortions","AutoFeedMinutes","PointerInteraction","Population","Brightness","DayNight","CustomPopulation","RiverFish","ChromisFish","AnthiasFish"};
         internal static string Export(Preferences p) {
             var data=new Dictionary<string,object> { {"Scene",p.Scene},{"Quality",p.Quality},{"Fps",p.Fps},{"AllScreens",p.AllScreens},{"ScreenScenes",p.ScreenScenes},{"BatteryMode",p.BatteryMode},{"Occlusion",p.Occlusion},{"FeedPortions",p.FeedPortions},{"AutoFeedMinutes",p.AutoFeedMinutes},{"PointerInteraction",p.PointerInteraction},{"Population",p.Population} };
-            data["Brightness"]=p.Brightness; data["DayNight"]=p.DayNight;
+            data["Aquascape"]=p.Aquascape; data["Brightness"]=p.Brightness; data["DayNight"]=p.DayNight;
             data["CustomPopulation"]=p.CustomPopulation; data["RiverFish"]=p.RiverFish; data["ChromisFish"]=p.ChromisFish; data["AnthiasFish"]=p.AnthiasFish;
             return new JavaScriptSerializer().Serialize(new {format="desktop-ecosphere.settings",schemaVersion=1,settings=data});
         }
@@ -29,6 +29,7 @@ namespace DesktopEcosphere {
             }
             if(!Names.Any(data.ContainsKey)) throw new FormatException("文件中没有可导入的设置。");
             var p=new Preferences(); object v;
+            if(data.TryGetValue("Aquascape",out v)) p.Aquascape=EnumValue(v,"淡水造景","river","garden","valley");
             if(data.TryGetValue("CustomPopulation",out v)) p.CustomPopulation=Boolean(v,"自定义鱼群数量");
             if(data.TryGetValue("RiverFish",out v)) p.RiverFish=Count(v,"淡水鱼数量",1,48);
             if(data.TryGetValue("ChromisFish",out v)) p.ChromisFish=Count(v,"Chromis 数量",2,18);

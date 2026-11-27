@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Web.Script.Serialization;
@@ -9,9 +9,11 @@ namespace DesktopEcosphere {
         internal static void Run() {
             var original=new Preferences { Scene="reefscape",Quality="detail",Fps=60,Population="lively",AllScreens=true,FeedPortions=3,AutoFeedMinutes=15,PointerInteraction=false,BatteryMode="pause",Occlusion=false,Wallpaper=true,Paused=true };
             original.ScreenScenes["offline-monitor"]="riverscape";
-            original.Brightness=75; original.DayNight=true;
+            original.Aquascape="garden"; original.Brightness=75; original.DayNight=true;
             original.CustomPopulation=true; original.RiverFish=17; original.ChromisFish=6; original.AnthiasFish=8;
             string exported=SettingsProfile.Export(original); var copy=SettingsProfile.Parse(exported);
+            Check(copy.Aquascape=="garden" && SettingsProfile.Parse("{\"Scene\":\"riverscape\"}").Aquascape=="river","造景导出往返与旧配置迁移");
+            Reject("{\"Aquascape\":\"invalid\"}");
             Check(copy.Brightness==75 && copy.DayNight,"灯光设置导入导出");
             Check(copy.CustomPopulation && copy.RiverFish==17 && copy.ChromisFish==6 && copy.AnthiasFish==8,"自定义鱼种数量导入导出");
             Check(copy.Scene==original.Scene && copy.Quality==original.Quality && copy.Fps==60 && copy.Population=="lively" && copy.AllScreens && copy.FeedPortions==3 && copy.AutoFeedMinutes==15 && !copy.PointerInteraction && copy.BatteryMode=="pause" && !copy.Occlusion && copy.ScreenScenes["offline-monitor"]=="riverscape","全部便携设置往返、保留离线显示器");

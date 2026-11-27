@@ -13,6 +13,8 @@ import { waterTime } from "./water.js";
 import { createFrameLoop } from "../../shared/frame-loop.js";
 import { renderSettings, framebufferSize } from "./render-policy.js";
 
+import { aquascape, createAquascape } from './aquascapes.js';
+
 const canvas = document.querySelector("#scene");
 const habitat = document.querySelector("#habitat");
 const loading = document.querySelector("#loading");
@@ -160,8 +162,9 @@ async function start() {
   backboard.position.set(0, 7, -7.2);
   backboard.receiveShadow = true;
   scene.add(backboard);
-  const { obstacles, landmarks } = await createEnvironment(scene);
-  const plants = createPlants(scene, {
+  const designed = aquascape === "river" ? null : await createAquascape(scene, {...settings, quality: profile, animatedShadows: profile !== "reference"});
+  const { obstacles, landmarks } = designed || await createEnvironment(scene);
+  const plants = designed ? designed.plants : createPlants(scene, {
     ...settings, animatedShadows: profile !== "reference",
   });
   const food = createFood(scene, { thickets: plants.thickets });
@@ -344,7 +347,7 @@ async function start() {
   });
   updateControls();
   window.habitatStats = () => ({
-    shaderErrors: renderer.info.programs.filter(program => program.diagnostics?.runnable === false).length,
+    aquascape, shaderErrors: renderer.info.programs.filter(program => program.diagnostics?.runnable === false).length,
     lighting, exposure:renderer.toneMappingExposure,
     population: populationName(query.get('population')), fishCount: fish.getTelemetry().count,
     profile, onBattery, resolution: settings.resolution,

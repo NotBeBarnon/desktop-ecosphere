@@ -950,7 +950,7 @@ export function applySkin(shader) {
           * smoothstep(-0.285, -0.225, fishX)
           * (1.0 - smoothstep(0.188, 0.245, fishX));
         vec2 sheenGrid = fishScaleGrid();
-        float mottle = 1.0 + (fishHash(floor(sheenGrid) + 7.0) - 0.5) * 0.14
+        float mottle = 1.0 + (fishHash(floor(sheenGrid) + 7.0) - 0.5) * 0.09
           * fishFade(sheenGrid);
         skin = mix(skin, vec3(0.080, 0.410, 0.620) * mottle, sheen * 0.82);
 
