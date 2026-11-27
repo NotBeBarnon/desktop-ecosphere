@@ -83,10 +83,10 @@ async function start() {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#050f0c");
+  scene.background = new THREE.Color(aquascape === "river" ? "#050f0c" : "#050a0c");
   // A faint green-blue veil builds along the viewing ray, leaving the foreground clear
   // while the back planting loses a little contrast through the water.
-  scene.fog = new THREE.FogExp2("#16312a", 0.034);
+  scene.fog = new THREE.FogExp2(aquascape === "river" ? "#16312a" : "#111e20", aquascape === "river" ? 0.034 : 0.018);
   const camera = new THREE.PerspectiveCamera(25.8, 1420 / 740, 0.2, 65);
   camera.position.set(0, 4.65, 20.5);
   camera.lookAt(0, 4.15, 0);
@@ -157,7 +157,7 @@ async function start() {
   // so gaps between blades read as lit water in front of a wall rather than a void.
   const backboard = new THREE.Mesh(
     new THREE.PlaneGeometry(44, 24),
-    new THREE.MeshStandardMaterial({ color: 0x1d3a2c, roughness: 1 }),
+    new THREE.MeshStandardMaterial({ color: aquascape === "river" ? 0x1d3a2c : 0x080e11, roughness: 1 }),
   );
   backboard.position.set(0, 7, -7.2);
   backboard.receiveShadow = true;
@@ -175,7 +175,7 @@ async function start() {
     thickets: plants.thickets,
     food,
   });
-  const particles = createParticles(scene, { thickets: plants.thickets });
+  const particles = createParticles(scene, { thickets: plants.thickets, clean: aquascape !== "river" });
 
   const { target, post, postScene, postCamera } = createComposite(camera, settings);
 
@@ -347,7 +347,7 @@ async function start() {
   });
   updateControls();
   window.habitatStats = () => ({
-    aquascape, shaderErrors: renderer.info.programs.filter(program => program.diagnostics?.runnable === false).length,
+    aquascape, finiteFish: fish.fish.every(f => [f.position.x,f.position.y,f.position.z,f.velocity.x,f.velocity.y,f.velocity.z].every(Number.isFinite)), shaderErrors: renderer.info.programs.filter(program => program.diagnostics?.runnable === false).length,
     lighting, exposure:renderer.toneMappingExposure,
     population: populationName(query.get('population')), fishCount: fish.getTelemetry().count,
     profile, onBattery, resolution: settings.resolution,

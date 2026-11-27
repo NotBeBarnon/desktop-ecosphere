@@ -810,9 +810,9 @@ export async function createEnvironment(scene) {
 // Suspended matter that reveals the water: flecks of detritus carried by the current, and
 // oxygen bubbles pearling off the plants. Both are lit only where the key light reaches
 // them, so they sparkle in the light and vanish in shade.
-export function createParticles(scene, { thickets }) {
-  const debris = 780,
-    bubbles = 120,
+export function createParticles(scene, { thickets, clean = false }) {
+  const debris = clean ? 120 : 780,
+    bubbles = clean ? 28 : 120,
     count = debris + bubbles;
   const positions = new Float32Array(count * 3),
     seeds = new Float32Array(count),
