@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GeometryBatch, groundHeight, randomGenerator, noise, vec } from './math.js';
-import { blade, stem, foliageMaterial, foliageDepth } from './foliage.js';
+import { blade, foliageMaterial, foliageDepth } from './foliage.js';
+
+import { limnophila, hygrophila } from './stemplants.js';
 
 export const aquascape = ['garden', 'valley'].includes(new URLSearchParams(location.search).get('layout'))
   ? new URLSearchParams(location.search).get('layout') : 'river';
@@ -54,19 +56,29 @@ export async function createAquascape(scene, settings) {
     landmarks.push({kind:'rock',point:vec(x,y+ry+.2,z),obstacle:obstacles.length-1});
   }
   const batch=new GeometryBatch();
-  // Opposite leaf pairs, progressively smaller crowns, varied heights and curved tips.
+  // Reuse the botanical growth builders: branching axes, irregular internodes,
+  // shaded basal leaf loss and smaller apical leaves, all attached to the same strand.
+  let specimen = 0;
   const plant=(x,z,height,red,carpet=false)=>{
-    const root=vec(x,groundHeight(x,z),z),lean=between(-.18,.18);
-    const color=new THREE.Color(red?'#8c4550':carpet?'#638b39':'#75904b');
-    color.offsetHSL(between(-.025,.025),between(-.06,.06),between(-.035,.035));
-    if(!carpet) stem(batch,[root,root.clone().add(vec(lean,height*.5,0)),root.clone().add(vec(lean*.6,height,0))],.012,color,root,.22);
-    const tiers=carpet?1:Math.max(3,Math.round(height*3.6));
-    for(let j=0;j<tiers;j++) for(let k=0;k<(carpet?4:2);k++){
-      const t=(j+.5)/tiers,a=j*2.399+k*Math.PI*(carpet?.5:1)+between(-.3,.3);
-      const length=(carpet?.18:.46)*(1-.35*t)*between(.8,1.25);
-      const base=root.clone().add(vec(lean*t,height*t,0));
-      const dir=vec(Math.cos(a),0,Math.sin(a));
-      blade(batch,[base,base.clone().addScaledVector(dir,length*.3).add(vec(0,length*.4,0)),base.clone().addScaledVector(dir,length*.85).add(vec(0,length*.45,0)),base.clone().addScaledVector(dir,length).add(vec(0,length*.22,0))],length*(carpet?.24:(red?.16:.22)),color,root,.3,{rows:10,cols:4,thin:.65,twist:a+Math.PI*.5+between(-.18,.18)});
+    const root=vec(x,groundHeight(x,z),z);
+    if (!carpet) {
+      const grow = !red && specimen++ % 3 !== 0 ? limnophila : hygrophila;
+      grow(batch, {root,height,red,natural:true,exposure:between(.9,1.2),canopy:height*1.05,
+        compliance:between(.2,.36),branches:height>2?1:0,
+        path:{leanAngle:between(0,Math.PI*2),lean:between(.025,.12),push:between(.025,.065),
+          wander:between(.025,.10),waves:between(.6,1.5),phase:between(0,Math.PI*2),arch:0}});
+      return;
+    }
+    // Low rosettes grow from one crown. Narrow arching blades replace the flat crosses.
+    const count=Math.floor(between(4,8));
+    const color=new THREE.Color('#45672b').offsetHSL(between(-.02,.02),0,between(-.02,.045));
+    for(let k=0;k<count;k++) {
+      const a=k*2.399+between(-.25,.25),dir=vec(Math.cos(a),0,Math.sin(a));
+      const length=between(.2,.48),rise=between(.18,.38);
+      blade(batch,[root,root.clone().addScaledVector(dir,length*.15).add(vec(0,rise*.75,0)),
+        root.clone().addScaledVector(dir,length*.65).add(vec(0,rise,0)),
+        root.clone().addScaledVector(dir,length).add(vec(0,rise*.4,0))],
+        between(.014,.027),color,root,.28,{rows:8,cols:2,thin:.78,twist:a+Math.PI*.5,browning:k===0?.12:0});
     }
   };
   const density=settings.quality === "eco" ? .55 : 1;
@@ -76,13 +88,20 @@ export async function createAquascape(scene, settings) {
     [2,-4.4,1.5,1,4.6,true],[6,-4.5,2,1,4.3,false],[8.8,-3.8,.9,1,3.7,false],
     [-6,-2.1,1.3,.8,1.7,false],[4.1,-2,1.7,.7,1.8,true]];
   for(const [cx,cz,sx,sz,height,red] of beds) {
-    const count=Math.round((valley?30:55)*density);
+    const count=Math.round((valley?20:25)*density);
     thickets.push({minX:cx-sx,maxX:cx+sx,minZ:cz-sz,maxZ:cz+sz,maxY:Math.max(1.8,groundHeight(cx,cz)+height)});
     for(let i=0;i<count;i++) {
       const a=between(0,Math.PI*2),r=Math.sqrt(rand());
       const x=cx+Math.cos(a)*sx*r,z=cz+Math.sin(a)*sz*r;
       if(rocks.some(([a,b,rx,,rz])=>Math.hypot((x-a)/rx,(z-b)/rz)<1.03)) continue;
-      plant(x,z,height*(1-.38*r*r)*between(.8,1.12),red);
+      plant(x,z,height*(1-.28*r*r)*between(.64,1.16),red);
+    }
+  }
+  if (!valley) for (const cx of [-8.3,-2.5,2.7,7.5]) {
+    for(let i=0;i<Math.round(14*density);i++) {
+      const x=cx+between(-.9,.9),z=between(-2.6,-1.3);
+      if(rocks.some(([a,b,rx,,rz])=>Math.hypot((x-a)/rx,(z-b)/rz)<1.12)) continue;
+      plant(x,z,between(.6,1.45),cx===2.7);
     }
   }
   for(let i=0;i<Math.round((valley?150:500)*density);i++) {
@@ -91,7 +110,7 @@ export async function createAquascape(scene, settings) {
     if(Math.abs(x-Math.sin(z)*1.4)<(valley?4:1.5) || noise(x*1.5,0,z*1.5)<.38) continue;
     plant(x,z,between(.08,.25),false,true);
   }
-  const mesh=new THREE.Mesh(batch.geometry(),foliageMaterial());mesh.castShadow=mesh.receiveShadow=true;
+  const mesh=new THREE.Mesh(batch.geometry(),foliageMaterial({natural:true}));mesh.castShadow=mesh.receiveShadow=true;
   mesh.customDepthMaterial=foliageDepth({animated:settings.animatedShadows});scene.add(mesh);
   return {obstacles,landmarks,plants:{mesh,thickets,stats:{vertices:batch.positions.length/3,triangles:batch.indices.length/3}}};
 }

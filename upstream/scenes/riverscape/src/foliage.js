@@ -53,12 +53,12 @@ const strandPosition = /* glsl */ `
 // Submerged leaves show almost no specular reflection: leaf tissue and water have
 // nearly the same refractive index, so what reaches the eye is diffuse reflection
 // and light transmitted through the thin blade.
-export function foliageMaterial() {
+export function foliageMaterial({ natural = false } = {}) {
   const material = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
-    roughness: 0.58,
+    roughness: natural ? 0.76 : 0.58,
     metalness: 0,
-    specularIntensity: 0.07,
+    specularIntensity: natural ? 0.025 : 0.07,
     side: THREE.DoubleSide,
     vertexColors: true,
     alphaToCoverage: true,
@@ -110,16 +110,23 @@ export function foliageMaterial() {
       normal=normalize(abs(det)*normal-sign(det)*(dFdx(surfaceHeight)*r1+dFdy(surfaceHeight)*r2));
     `,
     );
+    if (natural) shader.fragmentShader = shader.fragmentShader.replace("if (!gl_FrontFacing) diffuseColor.rgb *= vec3(.82, .76, .66);", "if (!gl_FrontFacing) diffuseColor.rgb *= vec3(.94, .96, .88);");
     waterLitShader(shader, {
       // Light reaching the far side of a thin leaf is scattered through the tissue, which
       // passes green far more readily than red or blue.
-      perLight: /* glsl */ `
+      perLight: (natural ? "#define BOTANICAL_PIGMENT\n" : "") + /* glsl */ `
         float backLight = saturate(dot(-geometryNormal, lit.direction));
-        reflectedLight.directDiffuse += lit.color * backLight * RECIPROCAL_PI * material.diffuseColor * vec3(.55, .85, .30) * (vThin * .9);
+        reflectedLight.directDiffuse += lit.color * backLight * RECIPROCAL_PI * material.diffuseColor
+        #ifdef BOTANICAL_PIGMENT
+        * mix(vec3(.55,.85,.30),vec3(.90,.48,.42),smoothstep(1.05,1.5,material.diffuseColor.r/max(.001,material.diffuseColor.g)))
+        #else
+        * vec3(.55,.85,.30)
+        #endif
+        * (vThin * .9);
       `,
     });
   };
-  material.customProgramCacheKey = () => "aquatic-leaves-v2";
+  material.customProgramCacheKey = () => natural ? "aquatic-leaves-botanical-v3" : "aquatic-leaves-v2";
   return material;
 }
 

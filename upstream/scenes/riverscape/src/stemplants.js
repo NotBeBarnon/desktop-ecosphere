@@ -195,6 +195,7 @@ function branchesOf(grow, batch, plant, curve, nodes, branches) {
     const azimuth = range(0, TAU);
     grow(batch, {
       root: curve.getPoint(nodes[i]),
+      red: plant.red, natural: plant.natural,
       anchor: plant.anchor,
       height: plant.height * range(0.42, 0.76),
       exposure: plant.exposure * range(0.9, 1.06),
@@ -219,7 +220,7 @@ function branchesOf(grow, batch, plant, curve, nodes, branches) {
 // shade. Leaves leave the stem square to it and curve up into the light. Tips flush
 // yellow-green where the light is strong; the lower stem, in the dark under the stand,
 // carries fewer, shorter, flatter, darker leaves and has dropped some whorls entirely.
-function limnophila(batch, plant) {
+export function limnophila(batch, plant) {
   const {
     root,
     height,
@@ -262,6 +263,7 @@ function limnophila(batch, plant) {
   // The leaf outline, not one of the thread-fine segments it divides into, is what the eye
   // resolves at this distance, so a leaf is drawn at its full dissected width and left
   // three-quarters translucent: a dissected blade covers only part of its own silhouette.
+  if (plant.natural) { shaded.set("#253b20"); sunlit.set("#607d34"); }
   const fullLength = range(0.6, 0.84);
   const fullWidth = range(0.03, 0.042);
   const keel = range(0.26, 0.38);
@@ -281,7 +283,7 @@ function limnophila(batch, plant) {
     const expand = 0.26 + 0.74 * smoothstep(0, 2.8, fromApex);
     const young = 1 - smoothstep(0, 4, fromApex);
     // Shed whorls leave bare stem at the foot of the stand.
-    const dieback = diebackAt(center.y, t, exposure, canopy);
+    const dieback = diebackAt(center.y, t, exposure, canopy) * (plant.natural ? .38 : 1);
     if (dieback > 0.5 && random() < dieback * 0.9) continue;
     // How many leaves a whorl carries is the species, not the light. Shade shows in the
     // internode, in the leaf's length and narrowness, and in shed whorls, not in the count.
@@ -346,7 +348,7 @@ function limnophila(batch, plant) {
 // turned a quarter turn from the last, on a stem that leans hard toward the light and
 // creeps as it goes. Well-lit shoots run bronze over the top few pairs; the lowest leaves
 // brown and go.
-function hygrophila(batch, plant) {
+export function hygrophila(batch, plant) {
   const {
     root,
     height,
@@ -383,12 +385,17 @@ function hygrophila(batch, plant) {
     range(0.14, 0.185),
   );
   // A quarter of the shoots have taken enough light to flush bronze at the growing tip.
-  const flushing = random() < 0.28;
+  const flushing = plant.red || random() < 0.28;
   const flush = new THREE.Color().setHSL(
     range(0.06, 0.1),
     range(0.5, 0.66),
     range(0.2, 0.27),
   );
+  if (plant.natural && !plant.red) { shaded.set("#283b21"); sunlit.set("#789247"); }
+  if (plant.red) {
+    // Burgundy mature leaves and copper-pink crowns; shaded lower leaves stay olive.
+    shaded.set('#44322a'); sunlit.set('#b25970'); flush.set('#d49b87');
+  }
   const fullLength = range(0.5, 0.72);
   const thin = range(0.55, 0.64);
   const twist = range(0, TAU);
@@ -402,7 +409,7 @@ function hygrophila(batch, plant) {
     const light = lightAt(center.y, exposure, canopy);
     const expand = 0.24 + 0.76 * smoothstep(0, 2.4, fromApex);
     const young = 1 - smoothstep(0, 3.4, fromApex);
-    const dieback = diebackAt(center.y, t, exposure, canopy);
+    const dieback = diebackAt(center.y, t, exposure, canopy) * (plant.natural ? .38 : 1);
     if (dieback > 0.55 && random() < dieback * 0.8) continue;
     const rise = 0.12 + 0.5 * young + 0.28 * light - 0.35 * dieback;
     // A broad leaf is stiff enough to hold itself out nearly straight, and only its last

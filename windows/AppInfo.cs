@@ -3,7 +3,7 @@
 [assembly: AssemblyFileVersion(DesktopEcosphere.AppInfo.Version+".0")]
 namespace DesktopEcosphere {
     static class AppInfo {
-        internal const string Version="0.14.0";
+        internal const string Version="0.15.0";
         internal const string Repository="https://github.com/NotBeBarnon/desktop-ecosphere";
     }
 }
